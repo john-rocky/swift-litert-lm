@@ -89,11 +89,13 @@ public final class LiteRTChat {
     if enableBenchmark { ExperimentalFlags.enableBenchmark = true }
 
     let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+    // Each tower's backend is dictated by the model's section constraints, not a
+    // free choice: e.g. Gemma 4 E2B's audio encoder is CPU-only (see catalog).
     let config = try EngineConfig(
       modelPath: path,
       backend: .gpu,
-      visionBackend: wanted.contains(.vision) ? .gpu : nil,
-      audioBackend: wanted.contains(.audio) ? .gpu : nil,
+      visionBackend: wanted.contains(.vision) ? model.visionBackend : nil,
+      audioBackend: wanted.contains(.audio) ? model.audioBackend : nil,
       maxNumTokens: model.defaultMaxTokens,
       cacheDir: caches?.path
     )

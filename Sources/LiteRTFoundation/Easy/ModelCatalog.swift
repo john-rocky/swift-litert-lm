@@ -8,6 +8,7 @@
 // jetsam ceiling.
 
 import Foundation
+import LiteRTLM
 
 /// Which multimodal towers to initialize alongside the text decoder.
 ///
@@ -77,6 +78,25 @@ public enum LiteRTModel: String, CaseIterable, Sendable {
   public var defaultModalities: Modality {
     switch self {
     case .gemma4_E2B: return .textImage
+    }
+  }
+
+  /// Backend for the vision tower. On iOS the Metal GPU delegate fails to prepare
+  /// the vision encoder's STABLEHLO_COMPOSITE op (createConversation → INTERNAL
+  /// error), so we run the encoder on CPU/XNNPACK. It's a ~224 MB graph invoked
+  /// once per image, so CPU is acceptable. Verified on device (G0).
+  public var visionBackend: Backend {
+    switch self {
+    case .gemma4_E2B: return .cpu()
+    }
+  }
+
+  /// Backend for the audio tower. Gemma 4 E2B's audio encoder is *CPU-constrained*
+  /// in the `.litertlm` (section_backend_constraint: cpu) — passing GPU makes the
+  /// engine refuse to initialize. Verified on device (G0).
+  public var audioBackend: Backend {
+    switch self {
+    case .gemma4_E2B: return .cpu()
     }
   }
 

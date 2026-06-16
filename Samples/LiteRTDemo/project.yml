@@ -39,6 +39,10 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.9"
+        # Copy bundled PNGs verbatim — Xcode's pngcrush rejects some PNGs
+        # (libpng error) and then drops them from the bundle.
+        COMPRESS_PNG_FILES: NO
+        STRIP_PNG_TEXT: NO
         CODE_SIGN_STYLE: Automatic
         # Set your team to sign for device, or do it in Xcode's Signing pane:
         # DEVELOPMENT_TEAM: ABCDE12345

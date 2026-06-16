@@ -58,60 +58,56 @@ enum G0SelfTest {
       return
     }
 
-    // 2) Bring up the engine (GPU) with all towers + benchmark instrumentation.
-    let chat: LiteRTChat
-    let initStart = Date()
-    do {
-      chat = try await LiteRTChat(model, modalities: .all, enableBenchmark: true)
-      let dt = Date().timeIntervalSince(initStart)
-      log(String(format: "engine ready in %.1fs — footprint %@", dt, mb(LiteRTChat.memoryFootprintBytes())))
-    } catch {
-      log("FATAL engine init failed: \(error.localizedDescription)")
-      log("DONE (failed)")
-      return
-    }
+    // 2) Bring each modality up in its OWN engine, tearing it down before the
+    // next. Loading text + vision + audio + the speculative drafter all at once
+    // exceeds the device memory budget (std::bad_alloc during vision-encoder init
+    // on the iPhone), so we isolate each tower to learn its real footprint + tok/s.
+    peak = 0
 
-    var peak = LiteRTChat.memoryFootprintBytes()
-    func notePeak() { peak = max(peak, LiteRTChat.memoryFootprintBytes()) }
-
-    // 3) TEXT
-    await stage("TEXT", chat: chat) {
+    await runConfig("TEXT", modalities: [] as Modality) { chat in
       try await chat.respond("Explain quantum computing in one sentence.")
     }
-    notePeak()
 
-    // 4) IMAGE
     if let img = bundledData("apple", "png") {
-      await stage("IMAGE", chat: chat) {
+      await runConfig("IMAGE", modalities: .vision) { chat in
         try await chat.respond("What object is in this image? Answer in one word.", image: img)
       }
     } else {
       log("IMAGE skipped — apple.png not in bundle")
     }
-    notePeak()
 
-    // 5) AUDIO
     if let audioURL = Bundle.main.url(forResource: "have_a_wonderful_day", withExtension: "wav") {
-      await stage("AUDIO", chat: chat) {
+      await runConfig("AUDIO", modalities: .audio) { chat in
         try await chat.respond("Transcribe the spoken words in this audio.", audio: .file(audioURL))
       }
     } else {
       log("AUDIO skipped — wav not in bundle")
     }
-    notePeak()
 
     log("PEAK footprint \(mb(peak))")
     log("DONE")
   }
 
-  /// Run one modality stage: generate, then log output + engine-measured tok/s.
-  private static func stage(
-    _ name: String, chat: LiteRTChat, _ body: () async throws -> String
+  private static var peak: Int64 = 0
+  private static func notePeak() { peak = max(peak, LiteRTChat.memoryFootprintBytes()) }
+
+  /// Bring up a fresh engine with the given modalities, run one generation, log
+  /// init time + output + engine-measured tok/s + footprint, then release it.
+  private static func runConfig(
+    _ name: String, modalities: Modality, _ body: (LiteRTChat) async throws -> String
   ) async {
-    let start = Date()
+    let initStart = Date()
     do {
-      let output = try await body()
-      let wall = Date().timeIntervalSince(start)
+      let chat = try await LiteRTChat(.gemma4_E2B, modalities: modalities, enableBenchmark: true)
+      let initDt = Date().timeIntervalSince(initStart)
+      notePeak()
+      log(String(format: "%@ engine up in %.1fs · footprint %@", name, initDt,
+        mb(LiteRTChat.memoryFootprintBytes())))
+
+      let genStart = Date()
+      let output = try await body(chat)
+      let wall = Date().timeIntervalSince(genStart)
+      notePeak()
       let oneLine = output.replacingOccurrences(of: "\n", with: " ")
         .trimmingCharacters(in: .whitespacesAndNewlines)
       log("\(name) output: \(oneLine.prefix(200))")
@@ -126,6 +122,9 @@ enum G0SelfTest {
     } catch {
       log("\(name) FAILED: \(error.localizedDescription)")
     }
+    // `chat` is released at scope exit; give the native engine a moment to free
+    // GPU memory before the next config initializes.
+    try? await Task.sleep(nanoseconds: 800_000_000)
   }
 
   private static func bundledData(_ name: String, _ ext: String) -> Data? {

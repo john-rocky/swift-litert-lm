@@ -61,11 +61,38 @@ The native runtime ships as prebuilt `xcframework`s attached to the official Lit
 - iOS 16+ / macOS 13+ for Easy mode. (FM mode requires the iOS 27 SDK.)
 - A physical device for Metal GPU inference.
 
+## Verified on device (G0)
+
+Gemma 4 E2B running on a physical **iPhone 17 Pro (iOS 27)** via the `LiteRTDemo`
+self-test — text + image + audio, all working:
+
+| Modality | Output | Decode | Prefill | TTFT | Footprint |
+|---|---|---|---|---|---|
+| Text (GPU) | correct one-sentence answer | ~25–42 tok/s | ~45–64 tok/s | 0.3–0.4 s | ~530 MB |
+| Image (CPU encoder) | "Apple" for `apple.png` ✓ | — ¹ | ~780 tok/s | 0.6 s | ~1.57 GB |
+| Audio (CPU encoder) | "Have a wonderful day." ✓ | ~53 tok/s | ~1090 tok/s | 0.1 s | ~400 MB |
+
+¹ image decode tok/s is statistically meaningless here (one-word answer). Peak
+footprint stayed at ~1.57 GB — far under the iPhone jetsam ceiling.
+
+Three device findings, now baked into the catalog so the API "just works":
+
+- **Audio encoder must run on CPU.** The `.litertlm` marks the audio sections
+  `section_backend_constraint: cpu`; passing a GPU audio backend makes the engine
+  refuse to initialize.
+- **Vision encoder must run on CPU on iOS.** The Metal GPU delegate fails to
+  prepare the encoder's `STABLEHLO_COMPOSITE` op (createConversation → INTERNAL
+  error); CPU/XNNPACK compiles it fine.
+- **Bring towers up one at a time.** Initializing text + vision + audio + the
+  speculative drafter *simultaneously* overruns the GPU weight-conversion budget
+  (`std::bad_alloc`). Each tower in isolation is small (≤ ~1.6 GB), so Easy mode
+  brings up only what you ask for.
+
 ## Roadmap
 
 - [x] Easy mode spine: catalog, downloader, `LiteRTChat` (text · image · audio)
-- [ ] **G0** — Gemma 4 E2B text + image + audio on a physical iPhone with Metal GPU (record tok/s + memory)
-- [ ] Easy-mode sample app (clone-and-run)
+- [x] **G0** — Gemma 4 E2B text + image + audio on a physical iPhone (tok/s + memory recorded above)
+- [x] Easy-mode sample app (`Samples/LiteRTDemo`, clone-and-run) + headless G0 self-test
 - [ ] **G1** — `LiteRTLanguageModel` / `LiteRTExecutor`: drive a non-Apple executor through `LanguageModelSession`
 - [ ] Audio through the Foundation Models API via `Transcript.CustomSegment`
 - [ ] Video through the Foundation Models API via app-side frame sampling
