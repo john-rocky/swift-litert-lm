@@ -20,14 +20,30 @@ struct LiteRTDemoApp: App {
   }
 
   var body: some Scene {
-    WindowGroup {
-      if BenchSelfTest.isRequested {
-        SelfTestRunnerView(title: "Running benchmark…") { await BenchSelfTest.run() }
-      } else if G0SelfTest.isRequested {
-        SelfTestRunnerView(title: "Running G0 self-test…") { await G0SelfTest.run() }
-      } else {
-        ContentView()
+    WindowGroup { rootView }
+  }
+
+  @ViewBuilder private var rootView: some View {
+    #if canImport(FoundationModels)
+    if #available(iOS 27.0, macOS 27.0, *), G1SelfTest.isRequested {
+      SelfTestRunnerView(title: "Running G1 (Foundation Models) self-test…") {
+        if #available(iOS 27.0, macOS 27.0, *) { await G1SelfTest.run() }
       }
+    } else {
+      nonFMRoot
+    }
+    #else
+    nonFMRoot
+    #endif
+  }
+
+  @ViewBuilder private var nonFMRoot: some View {
+    if BenchSelfTest.isRequested {
+      SelfTestRunnerView(title: "Running benchmark…") { await BenchSelfTest.run() }
+    } else if G0SelfTest.isRequested {
+      SelfTestRunnerView(title: "Running G0 self-test…") { await G0SelfTest.run() }
+    } else {
+      ContentView()
     }
   }
 }
