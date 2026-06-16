@@ -38,7 +38,9 @@ struct LiteRTDemoApp: App {
   }
 
   @ViewBuilder private var nonFMRoot: some View {
-    if BenchSelfTest.isRequested {
+    if MMChatSelfTest.isRequested {
+      SelfTestRunnerView(title: "Running multimodal-chat self-test…") { await MMChatSelfTest.run() }
+    } else if BenchSelfTest.isRequested {
       SelfTestRunnerView(title: "Running benchmark…") { await BenchSelfTest.run() }
     } else if G0SelfTest.isRequested {
       SelfTestRunnerView(title: "Running G0 self-test…") { await G0SelfTest.run() }
