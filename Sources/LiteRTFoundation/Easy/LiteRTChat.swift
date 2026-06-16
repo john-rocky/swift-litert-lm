@@ -54,9 +54,14 @@ public final class LiteRTChat {
   ///     Easy mode refuses to load on a device that would likely jetsam mid-run.
   ///   - enableBenchmark: Turn on the engine's benchmark instrumentation so
   ///     `lastBenchmark()` reports real prefill/decode tokens-per-second.
-  ///   - speculativeDecoding: Use the model's multi-token-prediction (MTP) drafter
-  ///     for faster decode. Gemma 4 E2B bundles an MTP drafter; this is the lever
-  ///     behind its headline tokens/sec. Throws if the model lacks drafter support.
+  ///   - speculativeDecoding: Use the model's multi-token-prediction (MTP) drafter.
+  ///     Off by default — on the current runtime build enabling it is flaky and
+  ///     gives no measured decode speedup for Gemma 4 E2B.
+  ///   - sampler: Sampling configuration for generation. Defaults to a balanced
+  ///     chat sampler. (A non-nil sampler also avoids a benchmark-mode crash.)
+  ///   - prewarm: Run a tiny throwaway generation during setup so the GPU decode
+  ///     kernels are warm — the *first* real message is then fast (~50 vs ~33
+  ///     tok/s cold on iPhone 17 Pro). On by default; adds ~1–2 s to setup.
   ///   - onDownloadProgress: Called on the first run as the model downloads.
   /// - Throws: `LiteRTChatError` for memory/availability problems, `LiteRTLMError`
   ///   for engine failures, or a download error.
@@ -67,6 +72,8 @@ public final class LiteRTChat {
     allowUnsafeMemory: Bool = false,
     enableBenchmark: Bool = false,
     speculativeDecoding: Bool = false,
+    sampler: SamplerConfig? = nil,
+    prewarm: Bool = true,
     onDownloadProgress: (@Sendable (ModelDownloader.Progress) -> Void)? = nil
   ) async throws {
     // Memory gate: refuse rather than let the OS kill us partway through a load.
@@ -106,7 +113,19 @@ public final class LiteRTChat {
     )
     let engine = Engine(engineConfig: config)
     try await engine.initialize()  // runs on the engine actor, off the main thread
-    let conversation = try await engine.createConversation()
+
+    // Prewarm on a throwaway conversation: the first generation compiles/warms the
+    // GPU decode kernels (cold ~33 → warm ~50 tok/s). Doing it here, on a separate
+    // conversation, keeps the user's real conversation history clean.
+    if prewarm {
+      let warmup = try await engine.createConversation()
+      for try await _ in warmup.sendMessageStream(Message("Hi")) {}
+    }
+
+    // A balanced default sampler unless the caller supplied one.
+    let activeSampler = try sampler ?? SamplerConfig(topK: 40, topP: 0.95, temperature: 0.8)
+    let conversation = try await engine.createConversation(
+      with: ConversationConfig(samplerConfig: activeSampler))
 
     self.init(
       model: model, modalities: wanted, modelPath: path,

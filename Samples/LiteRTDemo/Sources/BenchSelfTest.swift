@@ -1,10 +1,14 @@
 // LiteRTDemo — text decode benchmark probe.
 //
-// Isolates text decode speed to explain the gap to the model's headline tok/s.
-// Three measurements, all GPU, warm:
-//   1. The official fixed harness (256 prefill / 256 decode, speculative off).
-//   2. A real generation with the MTP speculative drafter OFF.
-//   3. The same with the drafter ON (the lever behind Gemma 4's headline speed).
+// Measures text decode speed the way a real chat app experiences it: one warm
+// engine, several short-chat turns in a row, reading LiteRT-LM's own per-turn
+// counters (getBenchmarkInfo). The first turn is COLD (GPU shaders / weight
+// conversion not yet warmed) and runs ~2× slower; from the second turn on the
+// engine is at steady state. This is what explains "33 vs 55 tok/s".
+//
+// Mirrors the reference setup (ios-llm-benchmark): EngineConfig(.gpu,
+// maxNumTokens: 2048) + a SamplerConfig on the conversation (the sampler is also
+// what keeps benchmark mode from crashing in `output_buffer_dup`).
 //
 // Launch with LITERT_BENCH=1. Lines are tagged "BENCH:" for devicectl polling.
 
@@ -40,47 +44,54 @@ enum BenchSelfTest {
       return
     }
 
-    // The official fixed harness (256 prefill / 256 decode, GPU) is the clean
-    // apples-to-apples number. Run it with the MTP speculative drafter OFF then
-    // ON — the drafter is the lever behind Gemma 4's headline tokens/sec.
+    // One warm engine, several short-chat turns. The reference benchmark + the
+    // Gemma 4 E2B model card both report ~55–56 tok/s decode on iPhone 17 Pro;
+    // that's the *warm* steady state, reached from the 2nd turn onward.
     ExperimentalFlags.optIntoExperimentalAPIs()
-    for spec in [false, true] {
-      ExperimentalFlags.enableSpeculativeDecoding = spec
-      do {
-        let bi = try await benchmark(
-          modelPath: path, backend: .gpu, prefillTokens: 256, decodeTokens: 256)
-        log(String(
-          format: "HARNESS spec=%@: decode %.1f tok/s · prefill %.1f tok/s · init %.1fs · %@",
-          spec ? "ON " : "off", bi.lastDecodeTokensPerSecond, bi.lastPrefillTokensPerSecond,
-          bi.initTimeInSecond, mb(LiteRTChat.memoryFootprintBytes())))
-      } catch {
-        log("HARNESS spec=\(spec) FAILED: \(error.localizedDescription)")
-      }
-      try? await Task.sleep(nanoseconds: 800_000_000)
-    }
-    ExperimentalFlags.enableSpeculativeDecoding = false
+    ExperimentalFlags.enableBenchmark = true
+    let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+    let prompt = "Explain what on-device AI means in simple terms."
 
-    // Real autoregressive generation, wall-clock, benchmark OFF (benchmark mode
-    // + respond crashes with output_buffer_dup on this build). This is the true
-    // test of whether the MTP drafter speeds up real decoding. words/s ≈ 0.75 ×
-    // tokens/s, so a ~2× jump with spec ON would mean MTP is working.
-    let prompt = "Write a detailed explanation of how a bicycle works, in about 150 words."
-    for spec in [false, true] {
+    do {
+      let config = try EngineConfig(
+        modelPath: path, backend: .gpu, maxNumTokens: 2048, cacheDir: caches?.path)
+      let engine = Engine(engineConfig: config)
+      let initStart = Date()
+      try await engine.initialize()
+      log(String(format: "engine init %.1fs · %@", Date().timeIntervalSince(initStart),
+        mb(LiteRTChat.memoryFootprintBytes())))
+
+      // topK 40 / temperature 0 ≈ greedy, but a non-nil SamplerConfig is what
+      // keeps benchmark mode from crashing (output_buffer_dup) on this build.
+      let sampler = try SamplerConfig(topK: 40, topP: 0.95, temperature: 0.0)
+
+      for turn in 1...4 {
+        let conv = try await engine.createConversation(
+          with: ConversationConfig(samplerConfig: sampler))
+        for try await _ in conv.sendMessageStream(Message(prompt)) {}
+        let b = try conv.getBenchmarkInfo()
+        log(String(
+          format: "turn %d (%@): decode %.1f tok/s · %d tok · prefill %.1f tok/s · ttft %.2fs · %@",
+          turn, turn == 1 ? "cold" : "warm", b.lastDecodeTokensPerSecond,
+          b.lastDecodeTokenCount, b.lastPrefillTokensPerSecond, b.timeToFirstTokenInSecond,
+          mb(LiteRTChat.memoryFootprintBytes())))
+      }
+    } catch {
+      log("FAILED: \(error.localizedDescription)")
+    }
+
+    // Product-API check: does LiteRTChat's prewarm make the *first* message warm?
+    for pw in [false, true] {
       do {
         let chat = try await LiteRTChat(
-          model, modalities: [] as Modality, speculativeDecoding: spec)
-        _ = try? await chat.respond("Hi.")  // warm up
-        let start = Date()
-        let out = try await chat.respond(prompt)
-        let wall = Date().timeIntervalSince(start)
-        let words = out.split(whereSeparator: { $0 == " " || $0 == "\n" }).count
-        log(String(
-          format: "GEN spec=%@: %.1f words/s · ~%d words · wall %.1fs · %@",
-          spec ? "ON " : "off", Double(words) / max(wall, 0.001), words, wall,
-          mb(LiteRTChat.memoryFootprintBytes())))
+          model, modalities: [] as Modality, enableBenchmark: true, prewarm: pw)
+        _ = try await chat.respond(prompt)  // the user's first real message
+        let b = try chat.lastBenchmark()
+        log(String(format: "LiteRTChat prewarm=%@: first-message decode %.1f tok/s · ttft %.2fs",
+          pw ? "ON " : "off", b.lastDecodeTokensPerSecond, b.timeToFirstTokenInSecond))
         try? await Task.sleep(nanoseconds: 800_000_000)
       } catch {
-        log("GEN spec=\(spec) FAILED: \(error.localizedDescription)")
+        log("LiteRTChat prewarm=\(pw) FAILED: \(error.localizedDescription)")
       }
     }
 

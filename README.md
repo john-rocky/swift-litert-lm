@@ -75,14 +75,16 @@ self-test — text + image + audio, all working:
 ¹ image decode tok/s is statistically meaningless here (one-word answer). Peak
 footprint stayed at ~1.57 GB — far under the iPhone jetsam ceiling.
 
-**On decode speed.** The text decode rate is context-dependent: ~42 tok/s at
-short context, ~33 tok/s averaged over a 256-token fixed harness, ~24 tok/s
-over a real 110-word generation (decode slows as the KV cache grows). This is
-near the device's **memory-bandwidth ceiling** — decode is weight-bound, not
-compute-bound. The model bundles an MTP speculative-decoding drafter, but
-enabling it (`speculativeDecoding: true`) is flaky on this runtime build
-("Failed to create engine") and gives **no decode speedup** when it does engage,
-so it is **off by default**. (Run the probe yourself: `LITERT_BENCH=1`.)
+**On decode speed.** Decode is warm-up- and context-dependent. The *first*
+generation after load is cold (~33–44 tok/s) while the GPU decode kernels
+compile; once warm it settles at **~50 tok/s** on iPhone 17 Pro — in line with
+independent benchmarks and Google's 56.5 tok/s model-card figure. `LiteRTChat`
+runs a small **prewarm** during setup (`prewarm: true`) so your *first* message
+is already fast. Decode is weight-bandwidth-bound and tapers slightly as the KV
+cache grows. The bundled MTP speculative-decoding drafter is **not** a useful
+lever here — enabling it (`speculativeDecoding: true`) is flaky on this runtime
+build ("Failed to create engine") with no measured speedup — so it's off by
+default. (Probe it yourself: `LITERT_BENCH=1`.)
 
 Three device findings, now baked into the catalog so the API "just works":
 
