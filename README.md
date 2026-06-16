@@ -5,7 +5,7 @@
 This package puts two faces on Google's official [LiteRT-LM](https://github.com/google-ai-edge/litert-lm) runtime:
 
 - **Easy mode** — `LiteRTChat(.gemma4_E2B)`: auto-download, memory-safe, Metal GPU, multimodal. The fastest path from zero to a Gemma 4 chat on a real device.
-- **FM mode** — `LiteRTLanguageModel`: a backend for Apple's **Foundation Models** API, so you can drive LiteRT through `LanguageModelSession(model:)` with `@Generable`, tools, and streaming — *plus audio and video understanding that Apple's own system model does not offer.* _(in progress; see Roadmap.)_
+- **FM mode** — `LiteRTLanguageModel`: a backend for Apple's **Foundation Models** API, so you can drive LiteRT through `LanguageModelSession(model:)` with streaming today (and `@Generable` / tools / audio / video on the roadmap) — *understanding Apple's own system model does not offer.* Text generation through the real FM API is **device-verified** (`respond` + `streamResponse` on iPhone 17 Pro).
 
 Apple opened Foundation Models to custom backends in iOS 27 and blessed exactly two on-device ones — `CoreAILanguageModel` (its own) and `MLXLanguageModel`. **LiteRT is conspicuously absent.** `LiteRTLanguageModel` makes Google's runtime the natural third first-class FM backend on iPhone.
 
@@ -36,6 +36,18 @@ Text + image + audio:
 ```swift
 let chat = try await LiteRTChat(.gemma4_E2B, modalities: .all)
 let answer = try await chat.respond("Transcribe and summarize.", audio: .file(wavURL))
+```
+
+FM mode — LiteRT as an Apple Foundation Models backend (iOS 27+):
+
+```swift
+import FoundationModels
+import LiteRTFoundation
+
+let model   = try await LiteRTLanguageModel(.gemma4_E2B)
+let session = LanguageModelSession(model: model)        // Apple's exact API
+let answer  = try await session.respond(to: "Explain on-device AI in one sentence.")
+for try await snapshot in session.streamResponse(to: "Name three colors.") { /* … */ }
 ```
 
 > **Metal GPU note:** the GPU backend only engages in an Xcode-signed app on a *physical* device. The iOS Simulator falls back to CPU.
@@ -104,7 +116,8 @@ Three device findings, now baked into the catalog so the API "just works":
 - [x] Easy mode spine: catalog, downloader, `LiteRTChat` (text · image · audio)
 - [x] **G0** — Gemma 4 E2B text + image + audio on a physical iPhone (tok/s + memory recorded above)
 - [x] Easy-mode sample app (`Samples/LiteRTDemo`, clone-and-run) + headless G0 self-test
-- [ ] **G1** — `LiteRTLanguageModel` / `LiteRTExecutor`: drive a non-Apple executor through `LanguageModelSession`
+- [x] Multimodal chat verified on device: one `.all` engine handles text + image + audio in one conversation
+- [x] **G1** — `LiteRTLanguageModel` / `LiteRTExecutor`: `LanguageModelSession(model:)` drives LiteRT-LM end-to-end via the real FM API (`respond` + `streamResponse`), device-verified on iPhone 17 Pro
 - [ ] Audio through the Foundation Models API via `Transcript.CustomSegment`
 - [ ] Video through the Foundation Models API via app-side frame sampling
 - [ ] **G2** — guided generation (`@Generable` / tools) over the custom executor
