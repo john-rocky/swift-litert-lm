@@ -17,6 +17,8 @@
 
 import Foundation
 import FoundationModels
+import ImageIO
+import UniformTypeIdentifiers
 import LiteRTLM
 
 /// A LiteRT-LM model exposed as an Apple Foundation Models backend.
@@ -41,10 +43,11 @@ public struct LiteRTLanguageModel: LanguageModel {
   ) async throws {
     let path = try await LiteRTChat.ensureModel(
       model, storageDirectory: storageDirectory, onProgress: onDownloadProgress)
-    self.executorConfiguration = LiteRTExecutor.Configuration(
-      modelPath: path, maxNumTokens: model.defaultMaxTokens)
-    // Text generation only for now; vision / guided generation are later phases.
-    self.capabilities = LanguageModelCapabilities(capabilities: [])
+    self.executorConfiguration = LiteRTExecutor.Configuration(model: model, modelPath: path)
+    // Vision is a declared FM capability (gates image attachments). Audio rides
+    // the custom-segment hook (LiteRTAudioSegment) and is not capability-gated.
+    self.capabilities = LanguageModelCapabilities(
+      capabilities: model.supportedModalities.contains(.vision) ? [.vision] : [])
   }
 }
 
@@ -56,11 +59,11 @@ public final class LiteRTExecutor: LanguageModelExecutor {
   /// Lightweight, `Hashable` description of what engine to build. The actual
   /// (async-initialized) engine is created lazily by the executor.
   public struct Configuration: Hashable, Sendable {
+    public let model: LiteRTModel
     public let modelPath: String
-    public let maxNumTokens: Int
-    public init(modelPath: String, maxNumTokens: Int) {
+    public init(model: LiteRTModel, modelPath: String) {
+      self.model = model
       self.modelPath = modelPath
-      self.maxNumTokens = maxNumTokens
     }
   }
 
@@ -152,16 +155,40 @@ public final class LiteRTExecutor: LanguageModelExecutor {
     }.joined(separator: " ")
   }
 
-  /// Map FM segments to LiteRT content. Text today; image attachments are a
-  /// later phase (the spine already supports `.imageData`).
+  /// Map FM segments to LiteRT content: text, image attachments, and audio via
+  /// the `LiteRTAudioSegment` custom segment.
   private static func contents(of segments: [Transcript.Segment]) -> [Content] {
     var out: [Content] = []
     for segment in segments {
-      if case .text(let t) = segment, !t.content.isEmpty {
-        out.append(.text(t.content))
+      switch segment {
+      case .text(let t):
+        if !t.content.isEmpty { out.append(.text(t.content)) }
+      case .attachment(let attachment):
+        if case .image(let image) = attachment.content, let png = pngData(from: image.cgImage) {
+          out.append(.imageData(png))
+        }
+      case .custom(let custom):
+        if let audio = custom as? LiteRTAudioSegment {
+          out.append(.audioData(audio.content.data))
+        }
+      case .structure:
+        break  // structured (guided-generation) content — a later phase
+      @unknown default:
+        break
       }
     }
     return out.isEmpty ? [.text("")] : out
+  }
+
+  /// CGImage → PNG bytes (cross-platform, via ImageIO).
+  private static func pngData(from cgImage: CGImage) -> Data? {
+    let data = NSMutableData()
+    guard
+      let dest = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil)
+    else { return nil }
+    CGImageDestinationAddImage(dest, cgImage, nil)
+    guard CGImageDestinationFinalize(dest) else { return nil }
+    return data as Data
   }
 }
 
@@ -192,10 +219,18 @@ private actor LazyEngine {
 
   func ready() async throws -> Engine {
     if let engine { return engine }
+    let model = configuration.model
+    // Bring up the vision + audio towers so image attachments and audio custom
+    // segments work through the FM API. Backends come from the catalog (Gemma 4
+    // E2B: both CPU — vision Metal fails STABLEHLO_COMPOSITE, audio is CPU-only).
+    ExperimentalFlags.optIntoExperimentalAPIs()
+    if let budget = model.defaultVisualTokenBudget { ExperimentalFlags.visualTokenBudget = budget }
     let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
     let config = try EngineConfig(
       modelPath: configuration.modelPath, backend: .gpu,
-      maxNumTokens: configuration.maxNumTokens, cacheDir: caches?.path)
+      visionBackend: model.supportedModalities.contains(.vision) ? model.visionBackend : nil,
+      audioBackend: model.supportedModalities.contains(.audio) ? model.audioBackend : nil,
+      maxNumTokens: model.defaultMaxTokens, cacheDir: caches?.path)
     let created = Engine(engineConfig: config)
     try await created.initialize()
     engine = created

@@ -27,7 +27,7 @@ struct LiteRTDemoApp: App {
     #if canImport(FoundationModels)
     if #available(iOS 27.0, macOS 27.0, *), G1SelfTest.isRequested {
       SelfTestRunnerView(title: "Running G1 (Foundation Models) self-test…") {
-        if #available(iOS 27.0, macOS 27.0, *) { await G1SelfTest.run() }
+        await G1SelfTest.run()
       }
     } else {
       nonFMRoot

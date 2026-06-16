@@ -1,106 +1,174 @@
-// LiteRTDemo — interactive chat UI.
+// LiteRTDemo — conversational chat UI (ChatGPT / Claude style).
 //
-// Shows the whole Easy-mode flow in ~one screen: first-run model download with
-// progress, a prompt field, an optional photo and an optional sample audio clip,
-// streaming output, and a live tokens/sec + memory readout.
+// A scrolling message list with user/assistant bubbles, inline image
+// attachments, a bottom input bar, and live token streaming into the assistant
+// bubble. Multi-turn over a single LiteRTChat conversation (Gemma 4 E2B,
+// text + image + audio, on the Metal GPU).
 
 import SwiftUI
 import PhotosUI
 import LiteRTFoundation
 
+// MARK: - Model
+
+struct ChatMessage: Identifiable {
+  enum Role { case user, assistant }
+  let id = UUID()
+  let role: Role
+  var text: String
+  var image: Data? = nil
+  var stats: String? = nil
+}
+
+// MARK: - Root
+
 struct ContentView: View {
   @StateObject private var vm = ChatViewModel()
   @State private var photoItem: PhotosPickerItem?
+  @State private var input = "What can you do?"
 
   var body: some View {
-    let hasImage = vm.imageData != nil
-    return VStack(alignment: .leading, spacing: 12) {
+    VStack(spacing: 0) {
       header
-
-      switch vm.phase {
-      case .loading(let fraction):
-        VStack(alignment: .leading, spacing: 6) {
-          ProgressView(value: fraction)
-          Text("Downloading & loading Gemma 4 E2B… \(Int(fraction * 100))%")
-            .font(.caption).foregroundStyle(.secondary)
-        }
-      case .error(let message):
-        Text(message).font(.callout).foregroundStyle(.red)
-      case .idle, .ready:
-        EmptyView()
-      }
-
-      // Attachments
-      HStack(spacing: 12) {
-        PhotosPicker(selection: $photoItem, matching: .images) {
-          Label(hasImage ? "Photo ✓" : "Photo", systemImage: "photo")
-        }
-        Toggle(isOn: $vm.attachSampleAudio) {
-          Label("Sample audio", systemImage: "waveform")
-        }
-        .toggleStyle(.button)
-        if hasImage {
-          Button(role: .destructive) { vm.imageData = nil; photoItem = nil } label: {
-            Image(systemName: "xmark.circle")
-          }
-        }
-      }
-      .font(.callout)
-      .disabled(!vm.isReady)
-
-      TextField("Ask something…", text: $vm.prompt, axis: .vertical)
-        .textFieldStyle(.roundedBorder)
-        .lineLimit(1...3)
-
-      Button(action: { Task { await vm.generate() } }) {
-        Label(vm.isGenerating ? "Generating…" : "Generate", systemImage: "sparkles")
-          .frame(maxWidth: .infinity)
-      }
-      .buttonStyle(.borderedProminent)
-      .disabled(!vm.isReady || vm.isGenerating || vm.prompt.isEmpty)
-
-      ScrollView {
-        Text(vm.output.isEmpty ? " " : vm.output)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .textSelection(.enabled)
-      }
-      .frame(maxHeight: .infinity)
-
-      if !vm.stats.isEmpty {
-        Text(vm.stats).font(.caption.monospaced()).foregroundStyle(.secondary)
-      }
+      Divider()
+      messageList
+      inputBar
     }
-    .padding()
     .task { await vm.loadIfNeeded() }
-    .onChange(of: photoItem) { item in  // single-parameter form for iOS 16 compatibility
-      Task { await vm.loadPhoto(item) }
-    }
+    .onChange(of: photoItem) { item in Task { await vm.attachPhoto(item) } }
   }
 
   private var header: some View {
-    HStack {
-      Text("LiteRT · Gemma 4 E2B").font(.headline)
+    HStack(spacing: 8) {
+      Image(systemName: "sparkles").foregroundStyle(.tint)
+      Text("Gemma 4 E2B").font(.headline)
       Spacer()
-      Circle()
-        .fill(vm.isReady ? .green : .orange)
-        .frame(width: 10, height: 10)
+      switch vm.phase {
+      case .loading(let f):
+        HStack(spacing: 6) {
+          ProgressView().controlSize(.small)
+          Text("\(Int(f * 100))%").font(.caption).foregroundStyle(.secondary)
+        }
+      case .ready:
+        Circle().fill(.green).frame(width: 9, height: 9)
+      case .error:
+        Circle().fill(.red).frame(width: 9, height: 9)
+      case .idle:
+        EmptyView()
+      }
     }
+    .padding(.horizontal).padding(.vertical, 10)
+  }
+
+  private var messageList: some View {
+    ScrollViewReader { proxy in
+      ScrollView {
+        LazyVStack(spacing: 12) {
+          if case .error(let message) = vm.phase {
+            Text(message).font(.callout).foregroundStyle(.red).padding()
+          }
+          ForEach(vm.messages) { MessageBubble(message: $0) }
+          if vm.isGenerating, vm.messages.last?.role != .assistant {
+            HStack { ProgressView().controlSize(.small); Spacer() }.padding(.horizontal)
+          }
+          Color.clear.frame(height: 1).id(bottomID)
+        }
+        .padding(.vertical, 12)
+      }
+      .scrollDismissesKeyboard(.interactively)
+      .onChange(of: vm.scrollTick) { _ in
+        withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(bottomID, anchor: .bottom) }
+      }
+    }
+  }
+
+  private let bottomID = "bottom"
+
+  private var inputBar: some View {
+    VStack(spacing: 6) {
+      if let image = vm.attachedImage, let ui = uiImage(image) {
+        HStack {
+          Image(uiImage: ui).resizable().scaledToFill()
+            .frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 8))
+          Text("Image attached").font(.caption).foregroundStyle(.secondary)
+          Spacer()
+          Button { vm.attachedImage = nil; photoItem = nil } label: {
+            Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+          }
+        }
+        .padding(.horizontal)
+      }
+      HStack(spacing: 10) {
+        PhotosPicker(selection: $photoItem, matching: .images) {
+          Image(systemName: "photo.on.rectangle").font(.title3)
+        }
+        .disabled(!vm.isReady)
+
+        TextField("Message", text: $input, axis: .vertical)
+          .textFieldStyle(.plain)
+          .lineLimit(1...5)
+          .padding(.horizontal, 12).padding(.vertical, 8)
+          .background(Color(.secondarySystemBackground))
+          .clipShape(RoundedRectangle(cornerRadius: 18))
+
+        Button {
+          let text = input
+          input = ""
+          Task { await vm.send(text) }
+        } label: {
+          Image(systemName: "arrow.up.circle.fill").font(.title)
+        }
+        .disabled(!vm.isReady || vm.isGenerating || input.trimmingCharacters(in: .whitespaces).isEmpty)
+      }
+      .padding(.horizontal).padding(.bottom, 8).padding(.top, 4)
+    }
+  }
+
+  private func uiImage(_ data: Data) -> UIImage? { UIImage(data: data) }
+}
+
+// MARK: - Bubble
+
+private struct MessageBubble: View {
+  let message: ChatMessage
+
+  var body: some View {
+    HStack {
+      if message.role == .user { Spacer(minLength: 40) }
+      VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 6) {
+        if let image = message.image, let ui = UIImage(data: image) {
+          Image(uiImage: ui).resizable().scaledToFill()
+            .frame(maxWidth: 220, maxHeight: 220).clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        if !message.text.isEmpty {
+          Text(message.text)
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(message.role == .user ? Color.accentColor : Color(.secondarySystemBackground))
+            .foregroundStyle(message.role == .user ? Color.white : Color.primary)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .textSelection(.enabled)
+        }
+        if let stats = message.stats {
+          Text(stats).font(.caption2.monospaced()).foregroundStyle(.secondary)
+        }
+      }
+      if message.role == .assistant { Spacer(minLength: 40) }
+    }
+    .padding(.horizontal)
   }
 }
 
+// MARK: - View model
+
 @MainActor
 final class ChatViewModel: ObservableObject {
-  enum Phase: Equatable {
-    case idle, loading(Double), ready, error(String)
-  }
+  enum Phase: Equatable { case idle, loading(Double), ready, error(String) }
 
   @Published var phase: Phase = .idle
-  @Published var prompt: String = "Explain quantum computing in one sentence."
-  @Published var output: String = ""
-  @Published var stats: String = ""
-  @Published var imageData: Data?
-  @Published var attachSampleAudio = false
+  @Published var messages: [ChatMessage] = []
+  @Published var attachedImage: Data?
   @Published var isGenerating = false
+  @Published var scrollTick = 0  // bumped to trigger auto-scroll
 
   private var chat: LiteRTChat?
 
@@ -118,60 +186,55 @@ final class ChatViewModel: ObservableObject {
       }
       self.chat = chat
       phase = .ready
-      // Optional auto-demo (LITERT_DEMO=1): attach the bundled image and run one
-      // multimodal turn so the screen shows a real answer. Used to capture a
-      // working-app screenshot headlessly; no effect on normal use.
-      if ProcessInfo.processInfo.environment["LITERT_DEMO"] != nil {
-        if let url = Bundle.main.url(forResource: "apple", withExtension: "png"),
-          let data = try? Data(contentsOf: url) {
-          imageData = data
-          prompt = "What is in this photo? Answer in one short sentence."
-        }
-        await generate()
-      }
+      if ProcessInfo.processInfo.environment["LITERT_DEMO"] != nil { await runDemo() }
     } catch {
       phase = .error(error.localizedDescription)
     }
   }
 
-  func loadPhoto(_ item: PhotosPickerItem?) async {
+  func attachPhoto(_ item: PhotosPickerItem?) async {
     guard let item else { return }
-    if let data = try? await item.loadTransferable(type: Data.self) {
-      imageData = data
-    }
+    if let data = try? await item.loadTransferable(type: Data.self) { attachedImage = data }
   }
 
-  func generate() async {
-    guard let chat, !isGenerating else { return }
+  func send(_ text: String) async {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let chat, !isGenerating, !trimmed.isEmpty else { return }
     isGenerating = true
-    output = ""
-    stats = ""
     defer { isGenerating = false }
 
-    let audio: AudioInput? = {
-      guard attachSampleAudio,
-        let url = Bundle.main.url(forResource: "have_a_wonderful_day", withExtension: "wav")
-      else { return nil }
-      return .file(url)
-    }()
+    let image = attachedImage
+    attachedImage = nil
+    messages.append(ChatMessage(role: .user, text: trimmed, image: image))
+    scrollTick += 1
+
+    let assistantIndex = messages.count
+    messages.append(ChatMessage(role: .assistant, text: ""))
 
     let start = Date()
     do {
-      for try await delta in chat.stream(prompt, image: imageData, audio: audio) {
-        output += delta
+      for try await delta in chat.stream(trimmed, image: image) {
+        messages[assistantIndex].text += delta
+        scrollTick += 1
       }
-      let wall = Date().timeIntervalSince(start)
       if let b = try? chat.lastBenchmark() {
-        stats = String(
-          format: "%.1f tok/s decode · %.1f prefill · ttft %.2fs · %.0f MB",
-          b.lastDecodeTokensPerSecond, b.lastPrefillTokensPerSecond,
-          b.timeToFirstTokenInSecond, Double(LiteRTChat.memoryFootprintBytes()) / 1_048_576)
+        messages[assistantIndex].stats = String(
+          format: "%.0f tok/s", b.lastDecodeTokensPerSecond)
       } else {
-        stats = String(format: "%.1fs · %.0f MB", wall,
-          Double(LiteRTChat.memoryFootprintBytes()) / 1_048_576)
+        messages[assistantIndex].stats = String(format: "%.1fs", Date().timeIntervalSince(start))
       }
     } catch {
-      output += "\n\n[error] \(error.localizedDescription)"
+      messages[assistantIndex].text += "\n[error] \(error.localizedDescription)"
     }
+    scrollTick += 1
+  }
+
+  /// Headless demo (LITERT_DEMO=1): one image turn so a screenshot shows a real chat.
+  private func runDemo() async {
+    if let url = Bundle.main.url(forResource: "apple", withExtension: "png"),
+      let data = try? Data(contentsOf: url) {
+      attachedImage = data
+    }
+    await send("What is in this photo? Answer in one short sentence.")
   }
 }
