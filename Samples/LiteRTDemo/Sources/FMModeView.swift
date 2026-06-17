@@ -1,17 +1,17 @@
 // LiteRTDemo — "FM API" mode screen.
 //
 // Proves, on-screen, that LiteRT-LM is driven through Apple's *real* Foundation
-// Models API — not a lookalike wrapper. Every type here is from Apple's
-// `FoundationModels` framework (`LanguageModelSession`, `@Generable`, `Tool`,
-// `GenerationSchema`); the only LiteRT-specific token is the `model:` argument:
+// Models API — the same `LanguageModelSession` you'd use for Apple Intelligence,
+// but the model is Google's Gemma 4 via LiteRT, 100% on-device.
 //
-//     let session = LanguageModelSession(model: LiteRTLanguageModel(.gemma4_E2B))
-//
-// It demonstrates the two behaviors a wrapper *can't* fake, because Apple's
-// runtime orchestrates them:
-//   • Guided generation — `respond(generating:)` returns a validated @Generable.
-//   • Tool calling       — the model emits a tool call, FM runs the app's Tool
-//                          and feeds the result back into the answer.
+// Every card shows its **input** (an editable prompt — type your own and re-Run
+// to prove a real LLM is processing it, not a canned script) and what the FM API
+// did with it:
+//   • respond(to:)        — plain generation, same call as Apple's own model.
+//   • respond(generating:)— you declare a Swift type; FM returns a filled, typed
+//                           value (not text you have to parse).
+//   • Tool calling        — the model decides to call your Swift function; FM
+//                           runs it and feeds the result back into the answer.
 
 #if canImport(FoundationModels)
 
@@ -19,11 +19,26 @@ import SwiftUI
 import FoundationModels
 import LiteRTFoundation
 
+// MARK: - Generable type FM fills for guided generation
+
+/// A general-purpose structured answer, so the guided demo works for *any*
+/// question the user types — FM decodes the model's output into these typed
+/// fields (no JSON parsing in app code).
+@available(iOS 27.0, macOS 27.0, *)
+@Generable
+struct StructuredAnswer {
+  @Guide(description: "A short title for the answer")
+  var title: String
+  @Guide(description: "The key points of the answer, each a short phrase")
+  var points: [String]
+}
+
 // MARK: - A tool that records when Foundation Models invokes it
 
-/// Same shape as the self-test's tool, but it reports each invocation so the UI
-/// can show the round-trip. The canned "22°C and sunny" string is data only the
-/// tool knows — if it surfaces in the final answer, FM truly called the tool.
+/// The model must read the user's prompt, extract a city, and call this — so
+/// changing the prompt (e.g. Tokyo → Paris) and seeing the city flow through is
+/// proof the LLM actually processed the input. The "22°C and sunny" string is
+/// data only the tool knows; its appearance in the answer proves FM ran the tool.
 @available(iOS 27.0, macOS 27.0, *)
 struct TracedTemperatureTool: FoundationModels.Tool {
   let name = "get_temperature"
@@ -48,12 +63,13 @@ struct TracedTemperatureTool: FoundationModels.Tool {
 struct FMModeView: View {
   @StateObject private var vm = FMViewModel()
   @Environment(\.dismiss) private var dismiss
+  @FocusState private var focused: Bool
 
   var body: some View {
     NavigationStack {
       ScrollView {
         VStack(spacing: 16) {
-          codeCard
+          banner
           textCard
           guidedCard
           toolCard
@@ -65,11 +81,13 @@ struct FMModeView: View {
         }
         .padding()
       }
+      .scrollDismissesKeyboard(.interactively)
       .navigationTitle("Foundation Models API")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
-        ToolbarItem(placement: .topBarTrailing) {
-          Button("Done") { dismiss() }
+        ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
+        ToolbarItem(placement: .keyboard) {
+          HStack { Spacer(); Button("Done") { focused = false } }
         }
       }
       .overlay { if !vm.isReady { loadingOverlay } }
@@ -79,10 +97,13 @@ struct FMModeView: View {
 
   // MARK: Cards
 
-  private var codeCard: some View {
+  private var banner: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Label("Driven by Apple's LanguageModelSession", systemImage: "cpu")
+      Label("Apple's Foundation Models API — running Gemma 4", systemImage: "cpu")
         .font(.subheadline.bold())
+      Text("The same `LanguageModelSession` API as Apple Intelligence — but the "
+        + "model is Google's Gemma 4 via LiteRT, 100% on-device.")
+        .font(.caption).foregroundStyle(.secondary)
       Text("let model   = try await LiteRTLanguageModel(.gemma4_E2B)\n"
         + "let session = LanguageModelSession(model: model)")
         .font(.caption.monospaced())
@@ -96,9 +117,9 @@ struct FMModeView: View {
 
   private var textCard: some View {
     DemoCard(
-      title: "respond(to:)", subtitle: "Plain generation through the FM API",
-      systemImage: "text.bubble", running: vm.running == .text,
-      disabled: vm.running != nil
+      title: "respond(to:)", subtitle: "Plain generation — same call as Apple's own model.",
+      systemImage: "text.bubble", prompt: $vm.textPrompt,
+      running: vm.running == .text, disabled: vm.running != nil, focused: $focused
     ) {
       Task { await vm.runText() }
     } content: {
@@ -110,23 +131,23 @@ struct FMModeView: View {
 
   private var guidedCard: some View {
     DemoCard(
-      title: "respond(generating:)", subtitle: "Guided generation → typed @Generable",
-      systemImage: "checklist", running: vm.running == .guided,
-      disabled: vm.running != nil
+      title: "respond(generating:)",
+      subtitle: "You declare a Swift type; FM returns a filled, typed value — not text to parse.",
+      systemImage: "checklist", prompt: $vm.guidedPrompt,
+      running: vm.running == .guided, disabled: vm.running != nil, focused: $focused
     ) {
       Task { await vm.runGuided() }
     } content: {
-      if let colors = vm.guidedColors {
+      if let answer = vm.guidedAnswer {
         VStack(alignment: .leading, spacing: 8) {
-          HStack {
-            ForEach(colors, id: \.self) { c in
-              Text(c).font(.caption.bold())
-                .padding(.horizontal, 10).padding(.vertical, 6)
-                .background(swatch(for: c)).foregroundStyle(.white)
-                .clipShape(Capsule())
-            }
+          Text(answer.title).font(.callout.bold())
+          ForEach(answer.points, id: \.self) { p in
+            Text(p).font(.caption.bold())
+              .padding(.horizontal, 10).padding(.vertical, 6)
+              .background(swatch(for: p)).foregroundStyle(.white)
+              .clipShape(Capsule())
           }
-          Label("Validated PrimaryColors.colors: [String] — decoded by FM",
+          Label("Typed StructuredAnswer { title: String; points: [String] } — decoded by FM",
             systemImage: "checkmark.seal.fill")
             .font(.caption2).foregroundStyle(.green)
         }
@@ -139,9 +160,10 @@ struct FMModeView: View {
 
   private var toolCard: some View {
     DemoCard(
-      title: "Tool calling", subtitle: "Model → FM runs your Tool → answer",
-      systemImage: "wrench.and.screwdriver", running: vm.running == .tool,
-      disabled: vm.running != nil
+      title: "Tool calling",
+      subtitle: "The model reads your prompt, calls your Swift function; FM runs it and feeds it back.",
+      systemImage: "wrench.and.screwdriver", prompt: $vm.toolPrompt,
+      running: vm.running == .tool, disabled: vm.running != nil, focused: $focused
     ) {
       Task { await vm.runTool() }
     } content: {
@@ -174,8 +196,8 @@ struct FMModeView: View {
     }
   }
 
-  private func swatch(for color: String) -> Color {
-    switch color.lowercased() {
+  private func swatch(for value: String) -> Color {
+    switch value.lowercased() {
     case let c where c.contains("red"): return .red
     case let c where c.contains("green"): return .green
     case let c where c.contains("blue"): return .blue
@@ -184,15 +206,17 @@ struct FMModeView: View {
   }
 }
 
-// MARK: - Reusable demo card
+// MARK: - Reusable demo card (editable input + result)
 
 @available(iOS 27.0, macOS 27.0, *)
 private struct DemoCard<Content: View>: View {
   let title: String
   let subtitle: String
   let systemImage: String
+  @Binding var prompt: String
   let running: Bool
   let disabled: Bool
+  var focused: FocusState<Bool>.Binding
   let action: () -> Void
   @ViewBuilder let content: () -> Content
 
@@ -209,6 +233,22 @@ private struct DemoCard<Content: View>: View {
         .disabled(disabled)
       }
       Text(subtitle).font(.caption).foregroundStyle(.secondary)
+
+      // Editable input: shows exactly what's sent, and lets you change it so you
+      // can confirm a real LLM is processing your words (not a fixed script).
+      VStack(alignment: .leading, spacing: 4) {
+        Text("INPUT").font(.caption2.bold()).foregroundStyle(.secondary)
+        TextField("prompt", text: $prompt, axis: .vertical)
+          .font(.callout).lineLimit(1...4)
+          .textFieldStyle(.plain)
+          .focused(focused)
+          .padding(8)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(Color(.tertiarySystemBackground))
+          .clipShape(RoundedRectangle(cornerRadius: 8))
+          .disabled(disabled)
+      }
+
       content()
     }
     .cardStyle()
@@ -235,8 +275,14 @@ final class FMViewModel: ObservableObject {
   @Published var isReady = false
   @Published var loadError: String?
   @Published var running: Running?
+
+  // Editable inputs (each card sends its own).
+  @Published var textPrompt = "Explain on-device AI in one sentence."
+  @Published var guidedPrompt = "List the three additive primary colors."
+  @Published var toolPrompt = "What is the temperature in Tokyo right now?"
+
   @Published var textOut = ""
-  @Published var guidedColors: [String]?
+  @Published var guidedAnswer: StructuredAnswer?
   @Published var guidedError: String?
   @Published var toolTrace: [String] = []
   @Published var toolAnswer = ""
@@ -259,13 +305,15 @@ final class FMViewModel: ObservableObject {
 
   func runText() async {
     guard let model, running == nil else { return }
+    let prompt = textPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !prompt.isEmpty else { return }
     running = .text; defer { running = nil }
     textOut = ""
     do {
-      // A fresh session per demo so each Run is self-contained — no prior turn in
+      // A fresh session per run so each Run is self-contained — no prior turn in
       // the transcript steering the result.
       let session = LanguageModelSession(model: model)
-      let r = try await session.respond(to: "Explain on-device AI in one sentence.")
+      let r = try await session.respond(to: prompt)
       textOut = r.content
     } catch {
       textOut = "[error] \(error.localizedDescription)"
@@ -274,18 +322,17 @@ final class FMViewModel: ObservableObject {
 
   func runGuided() async {
     guard let model, running == nil else { return }
+    let prompt = guidedPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !prompt.isEmpty else { return }
     running = .guided; defer { running = nil }
-    guidedColors = nil; guidedError = nil
-    // A fresh session (clean transcript — prior demo turns otherwise pollute the
-    // structured output) plus one retry: schema-in-prompt JSON can occasionally
-    // come back unparseable on a 2B model.
+    guidedAnswer = nil; guidedError = nil
+    // Fresh session (clean transcript) + one retry: schema-in-prompt JSON can
+    // occasionally come back unparseable on a 2B model.
     for attempt in 1...2 {
       do {
         let session = LanguageModelSession(model: model)
-        let r = try await session.respond(generating: PrimaryColors.self) {
-          "List the three additive primary colors."
-        }
-        guidedColors = r.content.colors
+        let r = try await session.respond(generating: StructuredAnswer.self) { prompt }
+        guidedAnswer = r.content
         return
       } catch {
         if attempt == 2 { guidedError = error.localizedDescription }
@@ -295,18 +342,20 @@ final class FMViewModel: ObservableObject {
 
   func runTool() async {
     guard let model, running == nil else { return }
+    let prompt = toolPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !prompt.isEmpty else { return }
     running = .tool; defer { running = nil }
     toolTrace = []; toolAnswer = ""
-    // A fresh session carrying the tool. The trace closure hops to the main
-    // actor when FM invokes the tool, so the round-trip is visible on screen.
+    // The trace closure hops to the main actor when FM invokes the tool, so the
+    // round-trip (and the city the model extracted) is visible on screen.
     let tool = TracedTemperatureTool { [weak self] city in
       Task { @MainActor in
         self?.toolTrace.append("🔧 get_temperature(city: \"\(city)\")  →  22°C and sunny")
       }
     }
-    let toolSession = LanguageModelSession(model: model, tools: [tool])
+    let session = LanguageModelSession(model: model, tools: [tool])
     do {
-      let r = try await toolSession.respond(to: "What is the temperature in Tokyo right now?")
+      let r = try await session.respond(to: prompt)
       toolAnswer = r.content
     } catch {
       toolAnswer = "[error] \(error.localizedDescription)"
