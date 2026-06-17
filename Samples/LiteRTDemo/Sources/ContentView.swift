@@ -47,6 +47,7 @@ struct ContentView: View {
   @State private var photoItem: PhotosPickerItem?
   @State private var videoItem: PhotosPickerItem?
   @State private var input = "What can you do?"
+  @FocusState private var inputFocused: Bool
 
   var body: some View {
     VStack(spacing: 0) {
@@ -119,12 +120,14 @@ struct ContentView: View {
         }
         TextField("Message", text: $input, axis: .vertical)
           .textFieldStyle(.plain).lineLimit(1...5)
+          .focused($inputFocused)
           .padding(.horizontal, 12).padding(.vertical, 8)
           .background(Color(.secondarySystemBackground))
           .clipShape(RoundedRectangle(cornerRadius: 18))
         Button {
           let text = input
           input = ""
+          inputFocused = false  // dismiss the keyboard when generation starts
           Task { await vm.send(text) }
         } label: {
           Image(systemName: "arrow.up.circle.fill").font(.title)
