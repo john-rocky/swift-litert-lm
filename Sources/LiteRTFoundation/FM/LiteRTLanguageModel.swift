@@ -51,6 +51,41 @@ public struct LiteRTLanguageModel: LanguageModel {
     self.capabilities = LanguageModelCapabilities(capabilities: capabilities)
   }
 
+  /// Create the backend from a **local `.litertlm` file** — no catalog, no
+  /// download. For experimenting with your own (e.g. fine-tuned) models through
+  /// the Foundation Models API: push the file with `devicectl`, bundle it, or
+  /// import it via the Files app, then load it straight by URL.
+  ///
+  /// - Parameters:
+  ///   - modelFileURL: Absolute file URL of an on-disk `.litertlm`.
+  ///   - modalities: Towers to enable (default `.all`; only the ones the model
+  ///     actually contains will work).
+  ///   - visionBackend / audioBackend: Backend per encoder tower (default
+  ///     `.cpu()` — the safe choice for Gemma 4-class models).
+  ///   - visualTokenBudget: Per-image visual-token cap (nil = engine default).
+  ///   - maxTokens: KV/context budget.
+  public init(
+    modelFileURL url: URL,
+    modalities: Modality = .all,
+    visionBackend: Backend = .cpu(),
+    audioBackend: Backend = .cpu(),
+    visualTokenBudget: Int32? = nil,
+    maxTokens: Int = 2048
+  ) throws {
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      throw LiteRTChatError.modelFileNotFound(url)
+    }
+    self.executorConfiguration = LiteRTExecutor.Configuration(
+      modelPath: url.path,
+      visionBackend: modalities.contains(.vision) ? visionBackend : nil,
+      audioBackend: modalities.contains(.audio) ? audioBackend : nil,
+      visualTokenBudget: visualTokenBudget,
+      maxTokens: maxTokens)
+    var capabilities: [LanguageModelCapabilities.Capability] = [.guidedGeneration, .toolCalling]
+    if modalities.contains(.vision) { capabilities.append(.vision) }
+    self.capabilities = LanguageModelCapabilities(capabilities: capabilities)
+  }
+
   /// Release every cached LiteRT engine built for FM sessions, freeing their
   /// multi-GB weights. Call when leaving FM mode so a subsequently-loaded engine
   /// (e.g. an Easy-mode `LiteRTChat`) doesn't sit resident alongside it and OOM
@@ -66,15 +101,42 @@ public struct LiteRTLanguageModel: LanguageModel {
 public final class LiteRTExecutor: LanguageModelExecutor {
   public typealias Model = LiteRTLanguageModel
 
-  /// Lightweight, `Hashable` description of what engine to build. The actual
-  /// (async-initialized) engine is created lazily by the executor.
-  public struct Configuration: Hashable, Sendable {
-    public let model: LiteRTModel
+  /// Lightweight description of what engine to build. The actual (async-init)
+  /// engine is created lazily by the executor and shared per `modelPath` (the
+  /// cache keys on the path alone, so two sessions over the same file reuse one
+  /// engine). Carries the engine settings explicitly so a custom local model
+  /// works without a catalog `LiteRTModel`.
+  public struct Configuration: Hashable, @unchecked Sendable {
     public let modelPath: String
-    public init(model: LiteRTModel, modelPath: String) {
-      self.model = model
+    let visionBackend: Backend?
+    let audioBackend: Backend?
+    let visualTokenBudget: Int32?
+    let maxTokens: Int
+
+    /// Settings derived from a catalog model.
+    init(model: LiteRTModel, modelPath: String) {
       self.modelPath = modelPath
+      self.visionBackend = model.supportedModalities.contains(.vision) ? model.visionBackend : nil
+      self.audioBackend = model.supportedModalities.contains(.audio) ? model.audioBackend : nil
+      self.visualTokenBudget = model.defaultVisualTokenBudget
+      self.maxTokens = model.defaultMaxTokens
     }
+
+    /// Explicit settings for a custom / local model.
+    public init(
+      modelPath: String, visionBackend: Backend?, audioBackend: Backend?,
+      visualTokenBudget: Int32?, maxTokens: Int
+    ) {
+      self.modelPath = modelPath
+      self.visionBackend = visionBackend
+      self.audioBackend = audioBackend
+      self.visualTokenBudget = visualTokenBudget
+      self.maxTokens = maxTokens
+    }
+
+    // One engine per file: hash/compare on the path only.
+    public static func == (a: Configuration, b: Configuration) -> Bool { a.modelPath == b.modelPath }
+    public func hash(into hasher: inout Hasher) { hasher.combine(modelPath) }
   }
 
   private let engine: LazyEngine
@@ -376,18 +438,18 @@ private actor LazyEngine {
 
   func ready() async throws -> Engine {
     if let engine { return engine }
-    let model = configuration.model
     // Bring up the vision + audio towers so image attachments and audio custom
-    // segments work through the FM API. Backends come from the catalog (Gemma 4
-    // E2B: both CPU — vision Metal fails STABLEHLO_COMPOSITE, audio is CPU-only).
+    // segments work through the FM API. Backends come from the configuration
+    // (Gemma 4 E2B: both CPU — vision Metal fails STABLEHLO_COMPOSITE, audio is
+    // CPU-only).
     ExperimentalFlags.optIntoExperimentalAPIs()
-    if let budget = model.defaultVisualTokenBudget { ExperimentalFlags.visualTokenBudget = budget }
+    if let budget = configuration.visualTokenBudget { ExperimentalFlags.visualTokenBudget = budget }
     let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
     let config = try EngineConfig(
       modelPath: configuration.modelPath, backend: .gpu,
-      visionBackend: model.supportedModalities.contains(.vision) ? model.visionBackend : nil,
-      audioBackend: model.supportedModalities.contains(.audio) ? model.audioBackend : nil,
-      maxNumTokens: model.defaultMaxTokens, cacheDir: caches?.path)
+      visionBackend: configuration.visionBackend,
+      audioBackend: configuration.audioBackend,
+      maxNumTokens: configuration.maxTokens, cacheDir: caches?.path)
     let created = Engine(engineConfig: config)
     try await created.initialize()
     engine = created

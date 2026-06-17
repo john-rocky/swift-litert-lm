@@ -136,6 +136,19 @@ file name, approximate size, minimum RAM) and call `LiteRTChat(.yourModel)`; the
 downloader does the rest. Point `downloadURL` at any host (your own CDN / S3) if
 you don't use Hugging Face.
 
+**Load a local file directly** — for swapping your own (e.g. fine-tuned) models
+in and out while experimenting, skip the catalog and download entirely:
+
+```swift
+// Easy mode — any on-disk .litertlm (bundled, pushed via devicectl, or imported
+// through the Files app). No download.
+let chat = try await LiteRTChat(modelFileURL: url, modalities: .all)
+
+// FM mode — same, as a Foundation Models backend.
+let model = try LiteRTLanguageModel(modelFileURL: url)
+let session = LanguageModelSession(model: model)
+```
+
 **Other options, and when they fit:**
 
 | Option | When to use |

@@ -30,8 +30,9 @@ public enum AudioInput: Sendable {
 /// A ready-to-use LiteRT-LM chat session backed by the Metal GPU.
 public final class LiteRTChat {
 
-  /// The model this session is running.
-  public let model: LiteRTModel
+  /// The catalog model this session is running, or `nil` when loaded from a
+  /// custom local file via `init(modelFileURL:)`.
+  public let model: LiteRTModel?
   /// The modalities actually brought up for this session.
   public let modalities: Modality
   /// Absolute path to the loaded model file.
@@ -135,8 +136,80 @@ public final class LiteRTChat {
       engine: engine, conversation: conversation)
   }
 
+  /// Bring up a chat session from a **local `.litertlm` file** — no catalog, no
+  /// download. The fast path for experimenting with your own (e.g. fine-tuned)
+  /// models: drop the file in the app bundle, push it with `devicectl`, or import
+  /// it via the Files app, then load it straight by URL.
+  ///
+  /// - Parameters:
+  ///   - modelFileURL: Absolute file URL of an on-disk `.litertlm`.
+  ///   - modalities: Towers to bring up. Defaults to `.all`; only the ones the
+  ///     model actually contains will work.
+  ///   - visionBackend / audioBackend: Backend for each encoder tower. Default
+  ///     `.cpu()` (the safe choice — Gemma 4's vision/audio must run on CPU).
+  ///   - visualTokenBudget: Per-image visual-token cap (nil = engine default).
+  ///   - maxTokens: KV/context budget.
+  ///   - minimumDeviceRAM: If set, refuse to load on a device with less RAM.
+  ///   - enableBenchmark / speculativeDecoding / sampler / prewarm: as the
+  ///     catalog initializer.
+  public convenience init(
+    modelFileURL url: URL,
+    modalities: Modality = .all,
+    visionBackend: Backend = .cpu(),
+    audioBackend: Backend = .cpu(),
+    visualTokenBudget: Int32? = nil,
+    maxTokens: Int = 2048,
+    minimumDeviceRAM: Int64? = nil,
+    enableBenchmark: Bool = false,
+    speculativeDecoding: Bool = false,
+    sampler: SamplerConfig? = nil,
+    prewarm: Bool = true
+  ) async throws {
+    if let need = minimumDeviceRAM {
+      let ram = Int64(ProcessInfo.processInfo.physicalMemory)
+      if ram < need {
+        throw LiteRTChatError.insufficientMemory(haveBytes: ram, needBytes: need)
+      }
+    }
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      throw LiteRTChatError.modelFileNotFound(url)
+    }
+
+    ExperimentalFlags.optIntoExperimentalAPIs()
+    if modalities.contains(.vision), let budget = visualTokenBudget {
+      ExperimentalFlags.visualTokenBudget = budget
+    }
+    if enableBenchmark { ExperimentalFlags.enableBenchmark = true }
+    ExperimentalFlags.enableSpeculativeDecoding = speculativeDecoding
+
+    let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+    let config = try EngineConfig(
+      modelPath: url.path,
+      backend: .gpu,
+      visionBackend: modalities.contains(.vision) ? visionBackend : nil,
+      audioBackend: modalities.contains(.audio) ? audioBackend : nil,
+      maxNumTokens: maxTokens,
+      cacheDir: caches?.path
+    )
+    let engine = Engine(engineConfig: config)
+    try await engine.initialize()
+
+    let activeSampler = try sampler ?? SamplerConfig(topK: 40, topP: 0.95, temperature: 0.8)
+    if prewarm {
+      let warmup = try await engine.createConversation(
+        with: ConversationConfig(samplerConfig: activeSampler))
+      for try await _ in warmup.sendMessageStream(Message("Hi")) {}
+    }
+    let conversation = try await engine.createConversation(
+      with: ConversationConfig(samplerConfig: activeSampler))
+
+    self.init(
+      model: nil, modalities: modalities, modelPath: url.path,
+      engine: engine, conversation: conversation)
+  }
+
   private init(
-    model: LiteRTModel, modalities: Modality, modelPath: String,
+    model: LiteRTModel?, modalities: Modality, modelPath: String,
     engine: Engine, conversation: Conversation
   ) {
     self.model = model
@@ -237,6 +310,8 @@ public final class LiteRTChat {
 public enum LiteRTChatError: Error, LocalizedError {
   /// The device does not have enough RAM to load this model safely.
   case insufficientMemory(haveBytes: Int64, needBytes: Int64)
+  /// `init(modelFileURL:)` was given a path with no file at it.
+  case modelFileNotFound(URL)
 
   public var errorDescription: String? {
     switch self {
@@ -246,6 +321,8 @@ public enum LiteRTChatError: Error, LocalizedError {
       return
         "This device has \(haveStr) of RAM; this model needs at least \(needStr). "
         + "Pass allowUnsafeMemory: true to try anyway."
+    case .modelFileNotFound(let url):
+      return "No model file found at \(url.path)."
     }
   }
 }
