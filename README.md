@@ -87,9 +87,14 @@ token streaming, and three attachments — **photo**, **microphone audio**, and
 ```bash
 brew install xcodegen          # if needed
 cd Samples/LiteRTDemo
+./fetch-test-assets.sh         # optional: pulls/generates the demo + self-test fixtures
 xcodegen generate
 open LiteRTDemo.xcodeproj       # set your DEVELOPMENT_TEAM, run on a device
 ```
+
+The fixtures (a sample image, audio, and video) are kept out of git — the
+interactive chat doesn't need them; the script provides them for the scripted
+demo (`LITERT_DEMO`) and the headless self-tests below.
 
 The same target also hosts headless self-tests for device verification (set an
 env var on launch): `LITERT_G0_TEST` (text+image+audio), `LITERT_MMCHAT`

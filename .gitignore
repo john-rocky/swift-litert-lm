@@ -22,6 +22,10 @@ SourcePackages/
 *.tflite
 *.bin
 
+# Sample test/demo assets — regenerable fixtures (Samples/LiteRTDemo/fetch-test-assets.sh)
+Samples/LiteRTDemo/Resources/*
+!Samples/LiteRTDemo/Resources/.gitkeep
+
 # Core ML / build artifacts — never commit
 *.mlmodel
 *.mlmodelc
