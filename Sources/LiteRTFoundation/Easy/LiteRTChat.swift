@@ -150,12 +150,15 @@ public final class LiteRTChat {
   /// - Parameters:
   ///   - prompt: The user's text.
   ///   - image: Optional image bytes (PNG/JPEG). Requires the vision tower.
+  ///   - images: Optional multiple images (e.g. sampled video frames). Each costs
+  ///     visual tokens — keep the count small. Requires the vision tower.
   ///   - audio: Optional audio input. Requires the audio tower.
   public func stream(
-    _ prompt: String, image: Data? = nil, audio: AudioInput? = nil
+    _ prompt: String, image: Data? = nil, images: [Data] = [], audio: AudioInput? = nil
   ) -> AsyncThrowingStream<String, Error> {
     var contents: [Content] = [.text(prompt)]
     if let image { contents.append(.imageData(image)) }
+    contents.append(contentsOf: images.map { .imageData($0) })
     if let audio { contents.append(audio.content) }
     let message = Message(contents: contents)
 
@@ -177,10 +180,12 @@ public final class LiteRTChat {
 
   /// Generate a full response (non-streaming convenience).
   public func respond(
-    _ prompt: String, image: Data? = nil, audio: AudioInput? = nil
+    _ prompt: String, image: Data? = nil, images: [Data] = [], audio: AudioInput? = nil
   ) async throws -> String {
     var out = ""
-    for try await delta in stream(prompt, image: image, audio: audio) { out += delta }
+    for try await delta in stream(prompt, image: image, images: images, audio: audio) {
+      out += delta
+    }
     return out
   }
 
