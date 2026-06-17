@@ -84,6 +84,13 @@ A clone-and-run SwiftUI chat in the ChatGPT/Claude style: message bubbles, live
 token streaming, and three attachments — **photo**, **microphone audio**, and
 **video** (sampled to frames). Runs Gemma 4 E2B fully on the device's Metal GPU.
 
+Tap **FM API** in the header for a second screen that runs the *same* model
+through Apple's Foundation Models API — `LanguageModelSession(model:)`,
+`respond(generating:)` rendering a typed `@Generable`, and a live **tool-calling**
+round-trip — so you can see on-device that LiteRT is a real FM backend, not a
+lookalike. (Entering FM mode frees the chat engine and FM brings up its own, so
+only one model is ever resident.)
+
 ```bash
 brew install xcodegen          # if needed
 cd Samples/LiteRTDemo

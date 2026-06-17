@@ -47,10 +47,18 @@ struct ContentView: View {
   @State private var photoItem: PhotosPickerItem?
   @State private var videoItem: PhotosPickerItem?
   @State private var input = "What can you do?"
+  @State private var showFM = false
   @FocusState private var inputFocused: Bool
 
   var body: some View {
-    VStack(spacing: 0) {
+    chatStack
+  }
+
+  // The Easy-mode chat, plus an optional "FM API" cover. Entering FM mode frees
+  // the Easy engine (`releaseEngine`) and FM builds its own on demand, so only
+  // one multi-GB model is ever resident; leaving it reloads the Easy chat.
+  @ViewBuilder private var chatStack: some View {
+    let base = VStack(spacing: 0) {
       header
       Divider()
       messageList
@@ -59,6 +67,21 @@ struct ContentView: View {
     .task { await vm.loadIfNeeded() }
     .onChange(of: photoItem) { item in Task { await vm.attachPhoto(item) } }
     .onChange(of: videoItem) { item in Task { await vm.attachVideo(item) } }
+
+    #if canImport(FoundationModels)
+    if #available(iOS 27.0, macOS 27.0, *) {
+      base.fullScreenCover(isPresented: $showFM, onDismiss: {
+        Task {
+          await LiteRTLanguageModel.releaseCachedEngines()  // free FM engine first
+          await vm.loadIfNeeded()                           // then reload Easy chat
+        }
+      }) { FMModeView() }
+    } else {
+      base
+    }
+    #else
+    base
+    #endif
   }
 
   private var header: some View {
@@ -66,6 +89,7 @@ struct ContentView: View {
       Image(systemName: "sparkles").foregroundStyle(.tint)
       Text("Gemma 4 E2B").font(.headline)
       Spacer()
+      fmButton
       switch vm.phase {
       case .loading(let f):
         HStack(spacing: 6) {
@@ -78,6 +102,23 @@ struct ContentView: View {
       }
     }
     .padding(.horizontal).padding(.vertical, 10)
+  }
+
+  // Opens the FM-API demo. Releases the Easy engine before presenting so FM
+  // mode's own engine doesn't load alongside it.
+  @ViewBuilder private var fmButton: some View {
+    #if canImport(FoundationModels)
+    if #available(iOS 27.0, macOS 27.0, *) {
+      Button {
+        vm.releaseEngine()
+        showFM = true
+      } label: {
+        Label("FM API", systemImage: "cpu").font(.caption.bold())
+      }
+      .buttonStyle(.bordered).controlSize(.small)
+      .disabled(!vm.isReady || vm.isGenerating)
+    }
+    #endif
   }
 
   private var messageList: some View {
@@ -260,6 +301,14 @@ final class ChatViewModel: ObservableObject {
     } catch {
       phase = .error(error.localizedDescription)
     }
+  }
+
+  /// Drop the Easy-mode engine (freeing its weights) and reset to `.idle` so a
+  /// later `loadIfNeeded()` rebuilds it. Used when handing memory to FM mode.
+  /// Chat history (`messages`) is kept so it's still on screen on return.
+  func releaseEngine() {
+    chat = nil
+    phase = .idle
   }
 
   // MARK: Attachments

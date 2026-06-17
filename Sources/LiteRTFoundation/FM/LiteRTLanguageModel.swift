@@ -50,6 +50,15 @@ public struct LiteRTLanguageModel: LanguageModel {
     if model.supportedModalities.contains(.vision) { capabilities.append(.vision) }
     self.capabilities = LanguageModelCapabilities(capabilities: capabilities)
   }
+
+  /// Release every cached LiteRT engine built for FM sessions, freeing their
+  /// multi-GB weights. Call when leaving FM mode so a subsequently-loaded engine
+  /// (e.g. an Easy-mode `LiteRTChat`) doesn't sit resident alongside it and OOM
+  /// the app. Any live `LanguageModelSession` over this backend transparently
+  /// rebuilds its engine on the next turn.
+  public static func releaseCachedEngines() async {
+    await EngineCache.shared.purgeAll()
+  }
 }
 
 /// Drives generation for `LiteRTLanguageModel` over the FM executor protocol.
@@ -334,6 +343,22 @@ private final class EngineCache: @unchecked Sendable {
     engines[configuration] = engine
     return engine
   }
+
+  /// Drop every cached engine and free its weights. Existing sessions rebuild
+  /// their engine lazily on next use.
+  func purgeAll() async {
+    for engine in drain() { await engine.release() }
+  }
+
+  /// Synchronously remove and return all cached engines (keeps the `NSLock` out
+  /// of the `async` context — locking across a suspension is disallowed).
+  private func drain() -> [LazyEngine] {
+    lock.lock()
+    defer { lock.unlock() }
+    let all = Array(engines.values)
+    engines.removeAll()
+    return all
+  }
 }
 
 /// Lazily creates and caches the LiteRT engine. The FM executor's `init` is
@@ -375,6 +400,13 @@ private actor LazyEngine {
     warmed = true
     let warmup = try await engine.createConversation()
     for try await _ in warmup.sendMessageStream(Message("Hi")) {}
+  }
+
+  /// Tear down the loaded engine, freeing its weights. A later `ready()`
+  /// rebuilds it from scratch.
+  func release() {
+    engine = nil
+    warmed = false
   }
 }
 
