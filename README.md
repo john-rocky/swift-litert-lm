@@ -2,10 +2,16 @@
 
 **Run Gemma 4 (and other LiteRT-LM models) on iPhone — the easy way, and as an Apple Foundation Models backend.**
 
+<p align="center">
+  <img src="docs/demo.gif" alt="LiteRTDemo on iPhone 17 Pro" width="300">
+</p>
+
+> Gemma 4 E2B running fully on-device — text, photos, microphone audio, and video, in one chat, on the Metal GPU.
+
 This package puts two faces on Google's official [LiteRT-LM](https://github.com/google-ai-edge/litert-lm) runtime:
 
 - **Easy mode** — `LiteRTChat(.gemma4_E2B)`: auto-download, memory-safe, Metal GPU, multimodal. The fastest path from zero to a Gemma 4 chat on a real device.
-- **FM mode** — `LiteRTLanguageModel`: a backend for Apple's **Foundation Models** API, so you can drive LiteRT through `LanguageModelSession(model:)` with streaming today (and `@Generable` / tools / audio / video on the roadmap) — *understanding Apple's own system model does not offer.* Text generation through the real FM API is **device-verified** (`respond` + `streamResponse` on iPhone 17 Pro).
+- **FM mode** — `LiteRTLanguageModel`: a backend for Apple's **Foundation Models** API. Drive LiteRT through `LanguageModelSession(model:)` with the full FM surface — `respond` / `streamResponse`, `@Generable` guided generation, `Tool` calling, and **image / audio / video understanding that Apple's own system model does not offer.** All device-verified on iPhone 17 Pro.
 
 Apple opened Foundation Models to custom backends in iOS 27 and blessed exactly two on-device ones — `CoreAILanguageModel` (its own) and `MLXLanguageModel`. **LiteRT is conspicuously absent.** `LiteRTLanguageModel` makes Google's runtime the natural third first-class FM backend on iPhone.
 
@@ -38,7 +44,7 @@ let chat = try await LiteRTChat(.gemma4_E2B, modalities: .all)
 let answer = try await chat.respond("Transcribe and summarize.", audio: .file(wavURL))
 ```
 
-FM mode — LiteRT as an Apple Foundation Models backend (iOS 27+):
+### FM mode — LiteRT as an Apple Foundation Models backend (iOS 27+)
 
 ```swift
 import FoundationModels
@@ -46,11 +52,49 @@ import LiteRTFoundation
 
 let model   = try await LiteRTLanguageModel(.gemma4_E2B)
 let session = LanguageModelSession(model: model)        // Apple's exact API
-let answer  = try await session.respond(to: "Explain on-device AI in one sentence.")
-for try await snapshot in session.streamResponse(to: "Name three colors.") { /* … */ }
+
+// Text — respond / streamResponse.
+let answer = try await session.respond(to: "Explain on-device AI in one sentence.")
+
+// Guided generation — @Generable structured output.
+let colors = try await session.respond(generating: PrimaryColors.self) { "List three primary colors." }
+
+// Tools — the model calls your FM Tool; FM runs it and feeds the result back.
+let withTool = LanguageModelSession(model: model, tools: [WeatherTool()])
+let weather  = try await withTool.respond(to: "What's the weather in Tokyo?")
+
+// Audio + video understanding — Apple's transcript has no audio/video, so LiteRT
+// carries them through the custom-segment hook (a world-first through the FM API).
+let spoken = try await session.respond {
+    LiteRTAudioSegment(data: wavBytes)
+    "Answer the question in this audio."
+}
+let frames = try await VideoFrameSampler.sampleFrames(from: videoURL, count: 4)
+let clip   = try await session.respond {
+    LiteRTVideoSegment(frames: frames)
+    "Describe what happens in this video."
+}
 ```
 
 > **Metal GPU note:** the GPU backend only engages in an Xcode-signed app on a *physical* device. The iOS Simulator falls back to CPU.
+
+## Sample app — `Samples/LiteRTDemo`
+
+A clone-and-run SwiftUI chat in the ChatGPT/Claude style: message bubbles, live
+token streaming, and three attachments — **photo**, **microphone audio**, and
+**video** (sampled to frames). Runs Gemma 4 E2B fully on the device's Metal GPU.
+
+```bash
+brew install xcodegen          # if needed
+cd Samples/LiteRTDemo
+xcodegen generate
+open LiteRTDemo.xcodeproj       # set your DEVELOPMENT_TEAM, run on a device
+```
+
+The same target also hosts headless self-tests for device verification (set an
+env var on launch): `LITERT_G0_TEST` (text+image+audio), `LITERT_MMCHAT`
+(one `.all` chat), `LITERT_BENCH` (decode speed), `LITERT_FM` (FM guided + audio
++ video + tools), `LITERT_DEMO` (auto-runs a couple of chat turns).
 
 ## What Easy mode owns for you
 
@@ -110,6 +154,14 @@ Three device findings, now baked into the catalog so the API "just works":
   speculative drafter *simultaneously* overruns the GPU weight-conversion budget
   (`std::bad_alloc`). Each tower in isolation is small (≤ ~1.6 GB), so Easy mode
   brings up only what you ask for.
+
+**FM mode, also verified on device** (`LITERT_FM=1`, iPhone 17 Pro): `respond` /
+`streamResponse`, guided generation (`respond(generating:)` → a structured
+`@Generable` result), tool calling (the model calls your `Tool`, FM runs it, the
+result feeds back into the answer), and audio / video understanding through the
+Foundation Models API. A note on audio: Gemma 4's audio tower is built for
+transcription, translation, and audio understanding (per Google's docs) — not as
+a conversational voice assistant — so audio is treated as an understanding task.
 
 ## Roadmap
 
