@@ -121,8 +121,10 @@ Three device findings, now baked into the catalog so the API "just works":
 - [x] Image through the FM API (`Transcript.AttachmentSegment` → LiteRT vision)
 - [x] **Audio through the FM API** via `LiteRTAudioSegment` (`Transcript.CustomSegment`) — **device-verified** (transcribed audio through `LanguageModelSession`; a world-first)
 - [x] **G2** — guided generation: `@Generable` / `GenerationSchema` over the custom executor — **device-verified** (`respond(generating:)` → structured result; schema-in-prompt + JSON extraction, hard `llguidance` is a follow-up)
-- [x] Video through the FM API via `LiteRTVideoSegment` + `VideoFrameSampler` (app-side frames) — implemented (runtime needs a video asset)
-- [ ] Tool calling (FM `Tool` → LiteRT tool-calling), `llguidance` hard-constrained decoding
+- [x] **Video through the FM API** via `LiteRTVideoSegment` + `VideoFrameSampler` (app-side frames) — **device-verified**
+- [x] **Tool calling** (FM `Tool` → LiteRT): the executor emits `ToolCalls` events, FM runs the app's tool, the result feeds back — **device-verified**
+- [x] Chat sample: ChatGPT-style bubbles + photo / **microphone audio** / **video** attachments (device)
+- [ ] Hard `llguidance`-constrained decoding (guided gen + tools are prompt-driven today)
 
 ## License
 
