@@ -91,6 +91,15 @@ round-trip — so you can see on-device that LiteRT is a real FM backend, not a
 lookalike. (Entering FM mode frees the chat engine and FM brings up its own, so
 only one model is ever resident.)
 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/0a25f1a0-f173-473a-9cbf-2ce3e987a308" alt="Tool calling through the Foundation Models API, on-device" width="280">
+</p>
+
+> Tool calling on-device: the model extracts the place from your prompt, your
+> Swift function calls Apple's CoreLocation (`CLGeocoder`), and the real
+> coordinates land on a MapKit map — orchestrated by the Foundation Models
+> runtime over the LiteRT backend.
+
 ```bash
 cd Samples/LiteRTDemo
 open LiteRTDemo.xcodeproj       # set your DEVELOPMENT_TEAM, run on a device
