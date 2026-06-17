@@ -30,6 +30,11 @@ public enum VideoFrameSampler {
     let generator = AVAssetImageGenerator(asset: asset)
     generator.appliesPreferredTrackTransform = true
     generator.maximumSize = CGSize(width: maxDimension, height: maxDimension)
+    // Extract the frame AT each timestamp, not the nearest keyframe — without this
+    // (the default is an infinite tolerance) a sparsely-keyframed clip returns the
+    // same opening keyframe for every sample.
+    generator.requestedTimeToleranceBefore = .zero
+    generator.requestedTimeToleranceAfter = .zero
 
     var frames: [Data] = []
     for i in 0..<n {
