@@ -38,7 +38,10 @@ public enum VideoFrameSampler {
 
     var frames: [Data] = []
     for i in 0..<n {
-      let fraction = n == 1 ? 0.5 : Double(i) / Double(n - 1)
+      // Sample within 10%–90% of the clip — the very start/end are often black,
+      // a title card, or a fade, which makes a single representative frame
+      // unrelated to the actual content.
+      let fraction = n == 1 ? 0.5 : 0.1 + 0.8 * Double(i) / Double(n - 1)
       let seconds = duration.isFinite ? max(0, duration * fraction) : 0
       let time = CMTime(seconds: seconds, preferredTimescale: 600)
       let result = try await generator.image(at: time)

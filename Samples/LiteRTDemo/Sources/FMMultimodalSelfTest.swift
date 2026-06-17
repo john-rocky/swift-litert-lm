@@ -74,11 +74,25 @@ enum FMMultimodalSelfTest {
         let data = try Data(contentsOf: wav)
         let answer = try await session.respond {
           LiteRTAudioSegment(data: data)
-          "Transcribe the spoken words in this audio."
+          "Listen to this audio and reply to what is said."
         }
-        log("AUDIO(FM) → \(answer.content.replacingOccurrences(of: "\n", with: " "))")
+        log("AUDIO(FM reply) → \(answer.content.replacingOccurrences(of: "\n", with: " "))")
       } catch {
         log("AUDIO(FM) FAILED: \(error.localizedDescription)")
+      }
+    }
+
+    // Spoken-question audio: does the model ANSWER it (vs transcribe)?
+    if let q = Bundle.main.url(forResource: "question", withExtension: "wav") {
+      do {
+        let data = try Data(contentsOf: q)
+        let answer = try await session.respond {
+          LiteRTAudioSegment(data: data)
+          "Answer the question that is asked in this audio."
+        }
+        log("AUDIO(Q&A) → \(answer.content.replacingOccurrences(of: "\n", with: " "))")
+      } catch {
+        log("AUDIO(Q&A) FAILED: \(error.localizedDescription)")
       }
     }
 
@@ -108,7 +122,8 @@ enum FMMultimodalSelfTest {
         let frames = try await VideoFrameSampler.sampleFrames(from: mov, count: 4)
         let answer = try await session.respond {
           LiteRTVideoSegment(frames: frames)
-          "Describe what happens in this video."
+          "These images are frames sampled from a video in chronological order. "
+            + "Describe what is happening in the video."
         }
         log("VIDEO(FM) → \(answer.content.replacingOccurrences(of: "\n", with: " "))")
       } catch {

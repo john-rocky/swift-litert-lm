@@ -336,8 +336,13 @@ final class ChatViewModel: ObservableObject {
   }
 
   private func defaultPrompt(image: Data?, frames: [Data]?, audio: URL?) -> String {
-    if audio != nil { return "Transcribe the spoken words in this audio." }
-    if frames != nil { return "Describe what happens in this video." }
+    if audio != nil {
+      return "Listen to this audio and respond to it. If it asks a question, answer it."
+    }
+    if frames != nil {
+      return "These images are frames sampled from a video in chronological order. "
+        + "Describe what is happening in the video."
+    }
     if image != nil { return "What is in this photo?" }
     return ""
   }
