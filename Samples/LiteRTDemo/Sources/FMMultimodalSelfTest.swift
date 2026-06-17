@@ -21,6 +21,24 @@ struct PrimaryColors {
   var colors: [String]
 }
 
+/// A sample Foundation Models tool the LiteRT backend can call.
+/// (Qualify `FoundationModels.Tool` — LiteRT-LM also exports a `Tool` type.)
+@available(iOS 27.0, macOS 27.0, *)
+struct TemperatureTool: FoundationModels.Tool {
+  let name = "get_temperature"
+  let description = "Get the current temperature for a city."
+
+  @Generable
+  struct Arguments {
+    @Guide(description: "The city name")
+    var city: String
+  }
+
+  func call(arguments: Arguments) async throws -> String {
+    "The temperature in \(arguments.city) is 22°C and sunny."
+  }
+}
+
 @available(iOS 27.0, macOS 27.0, *)
 enum FMMultimodalSelfTest {
   private static let logger = Logger(subsystem: "com.example.litertdemo", category: "FM")
@@ -72,6 +90,16 @@ enum FMMultimodalSelfTest {
       log("GUIDED → colors = \(guided.content.colors)")
     } catch {
       log("GUIDED FAILED: \(error.localizedDescription)")
+    }
+
+    // Tool calling through the FM API (the model calls the app's tool; FM runs
+    // it and feeds the result back).
+    do {
+      let toolSession = LanguageModelSession(model: model, tools: [TemperatureTool()])
+      let answer = try await toolSession.respond(to: "What is the temperature in Tokyo right now?")
+      log("TOOL → \(answer.content.replacingOccurrences(of: "\n", with: " "))")
+    } catch {
+      log("TOOL FAILED: \(error.localizedDescription)")
     }
 
     // Video understanding through the FM API (app-sampled frames).

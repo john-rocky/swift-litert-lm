@@ -46,7 +46,7 @@ public struct LiteRTLanguageModel: LanguageModel {
     // Declared capabilities: guided generation (best-effort schema-in-prompt; see
     // the executor) and vision (gates image attachments). Audio/video ride the
     // custom-segment hook and are not capability-gated.
-    var capabilities: [LanguageModelCapabilities.Capability] = [.guidedGeneration]
+    var capabilities: [LanguageModelCapabilities.Capability] = [.guidedGeneration, .toolCalling]
     if model.supportedModalities.contains(.vision) { capabilities.append(.vision) }
     self.capabilities = LanguageModelCapabilities(capabilities: capabilities)
   }
@@ -71,7 +71,10 @@ public final class LiteRTExecutor: LanguageModelExecutor {
   private let engine: LazyEngine
 
   public init(configuration: Configuration) throws {
-    self.engine = LazyEngine(configuration: configuration)
+    // Share one engine per configuration across executors. FM may build a new
+    // executor per session (e.g. a session created with tools), and each engine
+    // loads multi-GB weights — without sharing, a second session OOMs the app.
+    self.engine = EngineCache.shared.engine(for: configuration)
   }
 
   public func prewarm(model: Model, transcript: Transcript) {
@@ -86,24 +89,41 @@ public final class LiteRTExecutor: LanguageModelExecutor {
   ) async throws {
     let engine = try await self.engine.ready()
     // Guided generation (G2): if the request carries a schema, encode it to JSON
-    // and steer the model toward it via the prompt (schema-in-prompt). FM parses
-    // the model's JSON into the @Generable type. This is soft guidance; hard
-    // constrained decoding (llguidance) is a follow-up.
+    // and steer the model toward it via the prompt (schema-in-prompt). Tools: if
+    // the request enables tools, describe them in the prompt and detect a
+    // tool-call in the output. Both are soft (prompt-driven); hard constrained
+    // decoding (llguidance) is a follow-up.
+    let tools = request.enabledToolDefinitions
     let schemaJSON = request.schema.flatMap { try? Self.encodeSchema($0) }
-    let plan = try Self.plan(from: request.transcript, schemaJSON: schemaJSON)
+    let plan = try Self.plan(from: request.transcript, schemaJSON: schemaJSON, tools: tools)
 
-    // Lower temperature for guided generation (more reliable JSON).
-    let temperature: Float = schemaJSON == nil ? 0.8 : 0.0
+    // Lower temperature for guided / tool generation (more reliable JSON).
+    let structured = schemaJSON != nil || !tools.isEmpty
+    let temperature: Float = structured ? 0.0 : 0.8
     let conversation = try await engine.createConversation(
       with: ConversationConfig(
         systemMessage: plan.systemMessage,
         initialMessages: plan.history,
         samplerConfig: try? SamplerConfig(topK: 40, topP: 0.95, temperature: temperature)))
 
-    if schemaJSON != nil {
-      // Guided: accumulate the full output, extract the JSON object (the model
-      // tends to wrap it in prose / code fences), and emit it once so FM can
-      // parse the @Generable type cleanly.
+    if !tools.isEmpty {
+      // Tool mode: buffer the output; if it's a tool call, emit a ToolCalls event
+      // (FM executes the session's tool and re-invokes us with the result);
+      // otherwise emit the answer as text.
+      var full = ""
+      for try await chunk in conversation.sendMessageStream(plan.prompt) { full += chunk.toString }
+      if let call = Self.parseToolCall(from: full, tools: tools) {
+        await channel.send(
+          .toolCalls(
+            action: .toolCall(
+              id: UUID().uuidString, name: call.name,
+              action: .appendArguments(call.arguments, tokenCount: call.arguments.count))))
+      } else {
+        await channel.send(.response(action: .appendText(full, tokenCount: full.count)))
+      }
+    } else if schemaJSON != nil {
+      // Guided: accumulate, extract the JSON object (models wrap it in
+      // prose/fences), and emit once so FM parses the @Generable type cleanly.
       var full = ""
       for try await chunk in conversation.sendMessageStream(plan.prompt) { full += chunk.toString }
       let json = Self.extractJSONObject(from: full) ?? full
@@ -152,43 +172,56 @@ public final class LiteRTExecutor: LanguageModelExecutor {
   }
 
   /// Split the FM transcript into a system message, prior turns (history), and
-  /// the final user prompt that this turn should answer. When `schemaJSON` is
-  /// given, schema guidance is appended to the final prompt.
-  private static func plan(from transcript: Transcript, schemaJSON: String?) throws -> Plan {
+  /// the message to generate from. The generation trigger is the last `.prompt`
+  /// OR (in a tool round-trip) the last `.toolOutput`. Schema/tool guidance is
+  /// added as appropriate.
+  private static func plan(
+    from transcript: Transcript, schemaJSON: String?, tools: [Transcript.ToolDefinition]
+  ) throws -> Plan {
     let entries = Array(transcript)
     guard
-      let lastPromptIndex = entries.lastIndex(where: {
-        if case .prompt = $0 { return true } else { return false }
+      let triggerIndex = entries.lastIndex(where: {
+        switch $0 {
+        case .prompt, .toolOutput: return true
+        default: return false
+        }
       })
     else {
       throw LiteRTFMError.noPrompt
     }
 
     var systemText: [String] = []
+    if !tools.isEmpty { systemText.append(toolInstructions(tools)) }
     var history: [Message] = []
-    var prompt: Message?
+    var trigger: Message?
 
     for (i, entry) in entries.enumerated() {
+      let isTrigger = (i == triggerIndex)
       switch entry {
       case .instructions(let instructions):
         systemText.append(text(of: instructions.segments))
       case .prompt(let p):
-        if i == lastPromptIndex {
-          var c = contents(of: p.segments)
-          if let schemaJSON, !schemaJSON.isEmpty {
-            c.append(
-              .text(
-                "\n\nRespond with ONLY a JSON object that conforms to this JSON schema. "
-                  + "Output valid JSON and nothing else:\n\(schemaJSON)"))
-          }
-          prompt = Message(contents: c, role: .user)
-        } else {
-          history.append(Message(contents: contents(of: p.segments), role: .user))
+        var c = contents(of: p.segments)
+        if isTrigger, let schemaJSON, !schemaJSON.isEmpty {
+          c.append(
+            .text(
+              "\n\nRespond with ONLY a JSON object that conforms to this JSON schema. "
+                + "Output valid JSON and nothing else:\n\(schemaJSON)"))
         }
+        let message = Message(contents: c, role: .user)
+        if isTrigger { trigger = message } else { history.append(message) }
       case .response(let r):
         history.append(Message(contents: [.text(text(of: r.segments))], role: .model))
-      case .toolCalls, .toolOutput, .reasoning:
-        break  // not handled in this phase
+      case .toolOutput(let output):
+        let result = text(of: output.segments)
+        let message = Message(
+          "Tool \"\(output.toolName)\" returned: \(result)\nUse this result to answer the user.",
+          role: .user)
+        if isTrigger { trigger = message } else { history.append(message) }
+      case .toolCalls:
+        history.append(Message("[the assistant called a tool]", role: .model))
+      case .reasoning:
+        break
       @unknown default:
         break
       }
@@ -198,8 +231,38 @@ public final class LiteRTExecutor: LanguageModelExecutor {
     return Plan(
       systemMessage: system.isEmpty ? nil : Message(system, role: .system),
       history: history,
-      prompt: prompt!  // guaranteed by lastPromptIndex
+      prompt: trigger!  // guaranteed by triggerIndex
     )
+  }
+
+  /// Describe the enabled tools and the tool-call JSON format for the prompt.
+  private static func toolInstructions(_ tools: [Transcript.ToolDefinition]) -> String {
+    var lines = ["You can call tools to help answer the user. Available tools:"]
+    for tool in tools {
+      let params = (try? encodeSchema(tool.parameters)) ?? "{}"
+      lines.append("- \(tool.name): \(tool.description). arguments schema: \(params)")
+    }
+    lines.append(
+      "To call a tool, reply with ONLY this JSON and nothing else: "
+        + "{\"tool_call\": {\"name\": \"<tool name>\", \"arguments\": { ... }}}. "
+        + "If no tool is needed, answer the user directly.")
+    return lines.joined(separator: "\n")
+  }
+
+  /// Parse a tool call from model output, if present and naming a known tool.
+  private static func parseToolCall(from text: String, tools: [Transcript.ToolDefinition])
+    -> (name: String, arguments: String)?
+  {
+    guard let json = extractJSONObject(from: text),
+      let data = json.data(using: .utf8),
+      let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let call = obj["tool_call"] as? [String: Any],
+      let name = call["name"] as? String,
+      tools.contains(where: { $0.name == name })
+    else { return nil }
+    let args = call["arguments"] ?? [String: Any]()
+    let argsData = (try? JSONSerialization.data(withJSONObject: args)) ?? Data("{}".utf8)
+    return (name, String(data: argsData, encoding: .utf8) ?? "{}")
   }
 
   /// Concatenate the text of a segment list (non-text segments ignored for now).
@@ -252,6 +315,24 @@ public enum LiteRTFMError: Error, LocalizedError {
     switch self {
     case .noPrompt: return "The transcript contains no prompt to respond to."
     }
+  }
+}
+
+/// Process-wide cache of one `LazyEngine` per configuration, so multiple FM
+/// executors / sessions sharing a configuration share a single loaded engine.
+@available(iOS 27.0, macOS 27.0, *)
+private final class EngineCache: @unchecked Sendable {
+  static let shared = EngineCache()
+  private let lock = NSLock()
+  private var engines: [LiteRTExecutor.Configuration: LazyEngine] = [:]
+
+  func engine(for configuration: LiteRTExecutor.Configuration) -> LazyEngine {
+    lock.lock()
+    defer { lock.unlock() }
+    if let engine = engines[configuration] { return engine }
+    let engine = LazyEngine(configuration: configuration)
+    engines[configuration] = engine
+    return engine
   }
 }
 
