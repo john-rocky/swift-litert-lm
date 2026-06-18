@@ -1,7 +1,8 @@
 // swift-litert-lm — Foundation Models backend (FM mode)
 //
-// `LiteRTLanguageModel` makes LiteRT-LM a first-class Apple Foundation Models
-// backend, alongside Apple's own `CoreAILanguageModel` and `MLXLanguageModel`:
+// `LiteRTLanguageModel` makes LiteRT-LM an Apple Foundation Models backend: it
+// conforms to the iOS 27 `LanguageModel` protocol, alongside Apple's own
+// conformers `SystemLanguageModel` (on-device) and `PrivateCloudComputeLanguageModel`.
 //
 //   let model   = try await LiteRTLanguageModel(.gemma4_E2B)
 //   let session = LanguageModelSession(model: model)          // Apple's exact API
