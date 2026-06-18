@@ -54,6 +54,29 @@ It provides:
   tool-enabled session; without sharing, the multi-GB weights would load twice
   and OOM. `LiteRTLanguageModel.releaseCachedEngines()` frees them.
 
+## Non-invasive / good-citizen
+
+Beyond "no core changes," the adapter is careful not to overstep the existing API:
+
+- **Honors the caller's `GenerationOptions`.** `temperature`, `.greedy`,
+  `.random(top:)`, and `.random(probabilityThreshold:)` are mapped to LiteRT's
+  `SamplerConfig` instead of being overridden (only structured guided/tool output
+  is forced near-deterministic, since it's parsed as JSON).
+- **Leaves process-global `ExperimentalFlags` alone** unless the caller explicitly
+  passes a `visualTokenBudget`. An app that doesn't set one sees its flags
+  untouched.
+
+Two design points worth confirming with maintainers (kept explicit, not hidden):
+
+- **`EngineCache` is a process-wide singleton** keyed on `modelPath`. It's there
+  because FM may build a second executor for a tool-enabled session and the
+  multi-GB weights must not load twice. A non-singleton / opt-in ownership model
+  is possible if preferred.
+- **`init(engineConfig:)` captures a subset** of `EngineConfig` (modelPath,
+  backend, vision/audio backends, maxNumTokens) — it does not yet carry
+  `loraRank` / `audioLoraRank` / a custom `cacheDir`, because the adapter must
+  rebuild engines from a `Hashable` configuration.
+
 ## What is intentionally *not* here
 
 These stay in the `swift-litert-lm` app layer — they're conveniences, not runtime

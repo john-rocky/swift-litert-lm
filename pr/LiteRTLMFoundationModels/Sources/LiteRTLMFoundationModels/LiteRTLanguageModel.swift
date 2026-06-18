@@ -150,12 +150,11 @@ public final class LiteRTExecutor: LanguageModelExecutor {
     let plan = try Self.plan(from: request.transcript, schemaJSON: schemaJSON, tools: tools)
 
     let structured = schemaJSON != nil || !tools.isEmpty
-    let temperature: Float = structured ? 0.0 : 0.8
     let conversation = try await engine.createConversation(
       with: ConversationConfig(
         systemMessage: plan.systemMessage,
         initialMessages: plan.history,
-        samplerConfig: try? SamplerConfig(topK: 40, topP: 0.95, temperature: temperature)))
+        samplerConfig: Self.sampler(for: request.generationOptions, structured: structured)))
 
     if !tools.isEmpty {
       var full = ""
@@ -319,6 +318,33 @@ public final class LiteRTExecutor: LanguageModelExecutor {
     return String(data: data, encoding: .utf8) ?? ""
   }
 
+  /// Translate the caller's FM `GenerationOptions` into a LiteRT `SamplerConfig`,
+  /// so `temperature` / `.greedy` / `.random(top:)` / `.random(probabilityThreshold:)`
+  /// are honored instead of overridden. Structured output (guided / tools) is
+  /// parsed as JSON, so it's forced near-deterministic regardless.
+  private static func sampler(for options: GenerationOptions, structured: Bool) -> SamplerConfig? {
+    if structured { return try? SamplerConfig(topK: 1, topP: 1.0, temperature: 0.0) }
+
+    var topK = 40
+    var topP: Float = 0.95
+    var temperature = Float(options.temperature ?? 0.8)
+
+    if let kind = options.samplingMode?.kind {
+      switch kind {
+      case .greedy:
+        topK = 1
+        temperature = 0.0
+      case .top(let k, _):
+        topK = k
+      case .nucleus(let threshold, _):
+        topP = Float(threshold)
+      @unknown default:
+        break
+      }
+    }
+    return try? SamplerConfig(topK: topK, topP: topP, temperature: temperature)
+  }
+
   /// Map FM segments to LiteRT content: text, image attachments, and audio/video
   /// via the custom segments.
   private static func contents(of segments: [Transcript.Segment]) -> [Content] {
@@ -406,8 +432,14 @@ actor LazyEngine {
 
   func ready() async throws -> Engine {
     if let engine { return engine }
-    ExperimentalFlags.optIntoExperimentalAPIs()
-    if let budget = configuration.visualTokenBudget { ExperimentalFlags.visualTokenBudget = budget }
+    // Good citizen: only touch the process-global `ExperimentalFlags` when the
+    // caller explicitly asked for a visual-token budget. An app that doesn't set
+    // one sees its global flags left untouched. (Note: the budget is itself a
+    // process-wide setting in the core, so it applies to all conversations.)
+    if let budget = configuration.visualTokenBudget {
+      ExperimentalFlags.optIntoExperimentalAPIs()
+      ExperimentalFlags.visualTokenBudget = budget
+    }
     let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
     let config = try EngineConfig(
       modelPath: configuration.modelPath, backend: configuration.backend,
