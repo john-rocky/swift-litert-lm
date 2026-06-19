@@ -77,6 +77,23 @@ Two design points worth confirming with maintainers (kept explicit, not hidden):
   `loraRank` / `audioLoraRank` / a custom `cacheDir`, because the adapter must
   rebuild engines from a `Hashable` configuration.
 
+## Overhead vs the raw Swift API
+
+Driving the engine through Foundation Models (`LanguageModelSession` → executor →
+adapter → `Conversation`) is essentially free versus calling the core API
+directly. Same model, same prompt, **greedy** decoding — deterministic, so the
+output is byte-identical and the wall-time ratio is pure adapter overhead, not a
+sampling difference:
+
+| Platform | Model | Build | Overhead | Output |
+|---|---|---|---|---|
+| macOS (M-series) | Qwen3-0.6B | Release | +0.8% / −0.1% / +0.1% (×3) | identical |
+| iPhone 17 Pro / iOS 27 | Gemma 4 E2B | Release | +1.0% | identical |
+
+Decode runs on the same engine; the adapter only adds per-turn setup (transcript →
+`Message`, conversation creation), which the optimizer reduces to noise. (Debug
+builds show ~5% — that's the un-optimized glue; measure in Release.)
+
 ## What is intentionally *not* here
 
 These stay in the `swift-litert-lm` app layer — they're conveniences, not runtime
