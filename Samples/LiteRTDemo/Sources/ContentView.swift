@@ -281,6 +281,18 @@ private struct ModelPickerView: View {
   @State private var file = "gemma-4-E4B-it.litertlm"
   @State private var multimodal = false
   @State private var showImporter = false
+  @State private var docsModels: [URL] = []
+
+  /// `.litertlm` files sitting in the app's Documents (pushed via `devicectl
+  /// device copy to … --destination Documents/X.litertlm`). Listed so they load
+  /// with one tap — no Files navigation, no re-download.
+  private func scanDocsModels() {
+    let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+    docsModels = ((try? FileManager.default.contentsOfDirectory(
+      at: docs ?? URL(fileURLWithPath: "/"), includingPropertiesForKeys: nil)) ?? [])
+      .filter { $0.pathExtension == "litertlm" }
+      .sorted { $0.lastPathComponent < $1.lastPathComponent }
+  }
 
   var body: some View {
     NavigationStack {
@@ -288,6 +300,17 @@ private struct ModelPickerView: View {
         Section("Bundled (device-verified)") {
           Button { pick(.bundledE2B) } label: {
             row("Gemma 4 E2B", "text · image · audio · ~2.6 GB", selected: vm.source == .bundledE2B)
+          }
+        }
+
+        if !docsModels.isEmpty {
+          Section("On this device (Documents)") {
+            ForEach(docsModels, id: \.self) { url in
+              Button { pick(.localFile(url, multimodal: multimodal)) } label: {
+                row(url.deletingPathExtension().lastPathComponent,
+                    "local · pushed to Documents", selected: false)
+              }
+            }
           }
         }
 
@@ -320,6 +343,20 @@ private struct ModelPickerView: View {
           } label: {
             row("Llama-3.2-3B Instruct", "text · int4 · ~2.1 GB · downloads on first use", selected: false)
           }
+          Button {
+            pick(.huggingFace(
+              repo: "mlboydaisuke/Ministral-3-3B-Instruct-2512-LiteRT",
+              file: "model.litertlm", multimodal: false))
+          } label: {
+            row("Ministral-3-3B Instruct", "text · int4 · ~2.3 GB · downloads on first use", selected: false)
+          }
+          Button {
+            pick(.huggingFace(
+              repo: "mlboydaisuke/SmolLM3-3B-LiteRT",
+              file: "model.litertlm", multimodal: false))
+          } label: {
+            row("SmolLM3-3B", "text · int4 · ~1.9 GB · downloads on first use", selected: false)
+          }
           TextField("owner/repo", text: $repo)
             .textInputAutocapitalization(.never).autocorrectionDisabled().font(.callout)
           TextField("file.litertlm", text: $file)
@@ -335,9 +372,9 @@ private struct ModelPickerView: View {
         }
 
         Section {
-          Text("Only Gemma 4 E2B is verified on device here. Other models run "
-            + "through the same engine but aren't tested — bring any LiteRT-LM "
-            + "`.litertlm`.")
+          Text("Gemma 4 E2B and the SmolLM3-3B / Ministral-3-3B / Llama-3.2-3B presets are "
+            + "verified on device (iPhone 17 Pro). Other models run through the same engine — "
+            + "bring any LiteRT-LM `.litertlm`.")
             .font(.caption).foregroundStyle(.secondary)
         }
       }
@@ -347,6 +384,7 @@ private struct ModelPickerView: View {
       .fileImporter(isPresented: $showImporter, allowedContentTypes: [.data]) { result in
         if case .success(let url) = result { pick(.localFile(url, multimodal: multimodal)) }
       }
+      .onAppear { scanDocsModels() }
     }
   }
 
@@ -417,6 +455,16 @@ final class ChatViewModel: ObservableObject {
 
   func loadIfNeeded() async {
     guard chat == nil, case .idle = phase else { return }
+    // LITERT_OPEN_FILE=<name substring> opens straight into a local Documents model
+    // (e.g. LITERT_OPEN_FILE=llama → launch directly into Llama chat, no download).
+    if let want = ProcessInfo.processInfo.environment["LITERT_OPEN_FILE"],
+       let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
+       let match = ((try? FileManager.default.contentsOfDirectory(
+         at: docs, includingPropertiesForKeys: nil)) ?? [])
+         .first(where: { $0.pathExtension == "litertlm"
+           && $0.lastPathComponent.range(of: want, options: .caseInsensitive) != nil }) {
+      source = .localFile(match, multimodal: false)
+    }
     await load(source)
   }
 
@@ -445,16 +493,20 @@ final class ChatViewModel: ObservableObject {
           .gemma4_E2B, modalities: .all, enableBenchmark: true, prewarm: true,
           onDownloadProgress: onProgress)
       case .huggingFace(let repo, let file, let multimodal):
+        // Match the conservative config the on-device self-test uses for converted
+        // models: text-only, a moderate token budget, and no prewarm — a second
+        // warmup conversation trips the runtime's KV-cache buffer copy in
+        // CreateNewContext on some converted .litertlm (tensor_buffer error).
         loaded = try await LiteRTChat(
           huggingFaceRepo: repo, fileName: file, modalities: multimodal ? .all : [],
-          enableBenchmark: true, prewarm: true, onDownloadProgress: onProgress)
+          maxTokens: 512, enableBenchmark: true, prewarm: false, onDownloadProgress: onProgress)
       case .localFile(let url, let multimodal):
         // Hold the security scope open while the engine has the file mapped.
         _ = url.startAccessingSecurityScopedResource()
         securityScopedURL = url
         loaded = try await LiteRTChat(
           modelFileURL: url, modalities: multimodal ? .all : [],
-          enableBenchmark: true, prewarm: true)
+          maxTokens: 512, enableBenchmark: true, prewarm: false)
       }
       self.chat = loaded
       phase = .ready

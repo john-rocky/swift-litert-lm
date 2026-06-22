@@ -6,6 +6,8 @@ Package.resolved
 # Xcode
 DerivedData/
 .build-xcode/
+.build-xcode-cli/
+.build-device.log
 build/
 *.xcuserstate
 xcuserdata/

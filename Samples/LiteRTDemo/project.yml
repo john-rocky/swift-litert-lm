@@ -19,6 +19,9 @@ packages:
   swift-litert-lm:
     # The package at the repository root (two levels up).
     path: ../..
+  LiteRTLMFoundationModels:
+    # The lean upstream-PR-candidate FM adapter (depends only on the LiteRTLM core).
+    path: ../../pr/LiteRTLMFoundationModels
 
 targets:
   LiteRTDemo:
@@ -31,6 +34,8 @@ targets:
     dependencies:
       - package: swift-litert-lm
         product: LiteRTFoundation
+      - package: LiteRTLMFoundationModels
+        product: LiteRTLMFoundationModels
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.litertdemo

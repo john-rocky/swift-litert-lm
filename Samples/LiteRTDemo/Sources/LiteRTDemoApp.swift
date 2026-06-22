@@ -34,6 +34,14 @@ struct LiteRTDemoApp: App {
         SelfTestRunnerView(title: "Running FM multimodal self-test…") {
           await FMMultimodalSelfTest.run()
         }
+      } else if LeanFMSelfTest.isRequested {
+        SelfTestRunnerView(title: "Running lean FM adapter self-test…") {
+          await LeanFMSelfTest.run()
+        }
+      } else if CompareSelfTest.isRequested {
+        SelfTestRunnerView(title: "Running FM-vs-raw overhead compare…") {
+          await CompareSelfTest.run()
+        }
       } else {
         nonFMRoot
       }
@@ -46,7 +54,9 @@ struct LiteRTDemoApp: App {
   }
 
   @ViewBuilder private var nonFMRoot: some View {
-    if MMChatSelfTest.isRequested {
+    if LocalModelsSelfTest.isRequested {
+      SelfTestRunnerView(title: "Running local-models self-test…") { await LocalModelsSelfTest.run() }
+    } else if MMChatSelfTest.isRequested {
       SelfTestRunnerView(title: "Running multimodal-chat self-test…") { await MMChatSelfTest.run() }
     } else if BenchSelfTest.isRequested {
       SelfTestRunnerView(title: "Running benchmark…") { await BenchSelfTest.run() }
