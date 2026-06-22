@@ -313,6 +313,13 @@ private struct ModelPickerView: View {
           } label: {
             row("Falcon3-3B Instruct", "text · int4 · ~1.9 GB · downloads on first use", selected: false)
           }
+          Button {
+            pick(.huggingFace(
+              repo: "mlboydaisuke/Llama-3.2-3B-Instruct-LiteRT",
+              file: "model.litertlm", multimodal: false))
+          } label: {
+            row("Llama-3.2-3B Instruct", "text · int4 · ~2.1 GB · downloads on first use", selected: false)
+          }
           TextField("owner/repo", text: $repo)
             .textInputAutocapitalization(.never).autocorrectionDisabled().font(.callout)
           TextField("file.litertlm", text: $file)
