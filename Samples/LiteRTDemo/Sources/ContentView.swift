@@ -357,6 +357,13 @@ private struct ModelPickerView: View {
           } label: {
             row("SmolLM3-3B", "text · int4 · ~1.9 GB · downloads on first use", selected: false)
           }
+          Button {
+            pick(.huggingFace(
+              repo: "mlboydaisuke/OLMo-2-1B-Instruct-LiteRT",
+              file: "model.litertlm", multimodal: false))
+          } label: {
+            row("OLMo-2-1B Instruct", "text · int4 · ~0.9 GB · downloads on first use", selected: false)
+          }
           TextField("owner/repo", text: $repo)
             .textInputAutocapitalization(.never).autocorrectionDisabled().font(.callout)
           TextField("file.litertlm", text: $file)
@@ -372,8 +379,8 @@ private struct ModelPickerView: View {
         }
 
         Section {
-          Text("Gemma 4 E2B and the SmolLM3-3B / Ministral-3-3B / Llama-3.2-3B presets are "
-            + "verified on device (iPhone 17 Pro). Other models run through the same engine — "
+          Text("Gemma 4 E2B and the OLMo-2-1B / SmolLM3-3B / Ministral-3-3B / Llama-3.2-3B presets "
+            + "are verified on device (iPhone 17 Pro). Other models run through the same engine — "
             + "bring any LiteRT-LM `.litertlm`.")
             .font(.caption).foregroundStyle(.secondary)
         }
