@@ -364,6 +364,13 @@ private struct ModelPickerView: View {
           } label: {
             row("OLMo-2-1B Instruct", "text · int4 · ~0.9 GB · downloads on first use", selected: false)
           }
+          Button {
+            pick(.huggingFace(
+              repo: "mlboydaisuke/DeepSeek-R1-Distill-Qwen-1.5B-LiteRT",
+              file: "model.litertlm", multimodal: false))
+          } label: {
+            row("DeepSeek-R1-Distill-Qwen-1.5B", "reasoning · int4 · ~1.0 GB · downloads on first use", selected: false)
+          }
           TextField("owner/repo", text: $repo)
             .textInputAutocapitalization(.never).autocorrectionDisabled().font(.callout)
           TextField("file.litertlm", text: $file)
