@@ -110,7 +110,10 @@ public final class LiteRTChat {
       visionBackend: wanted.contains(.vision) ? model.visionBackend : nil,
       audioBackend: wanted.contains(.audio) ? model.audioBackend : nil,
       maxNumTokens: model.defaultMaxTokens,
-      cacheDir: caches?.path
+      cacheDir: caches?.path,
+      // Engine default is 1 image/conversation (a 2nd image overwrites the 1st);
+      // allow several so multi-image chats work when vision is enabled.
+      maxNumImages: wanted.contains(.vision) ? 16 : nil
     )
     let engine = Engine(engineConfig: config)
     try await engine.initialize()  // runs on the engine actor, off the main thread
@@ -189,7 +192,10 @@ public final class LiteRTChat {
       visionBackend: modalities.contains(.vision) ? visionBackend : nil,
       audioBackend: modalities.contains(.audio) ? audioBackend : nil,
       maxNumTokens: maxTokens,
-      cacheDir: caches?.path
+      cacheDir: caches?.path,
+      // Engine default is 1 image/conversation (a 2nd image overwrites the 1st);
+      // allow several so multi-image chats work when vision is enabled.
+      maxNumImages: modalities.contains(.vision) ? 16 : nil
     )
     let engine = Engine(engineConfig: config)
     try await engine.initialize()

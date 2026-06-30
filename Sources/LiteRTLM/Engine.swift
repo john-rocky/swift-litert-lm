@@ -87,6 +87,9 @@ public actor Engine {
     if let maxNumTokens = engineConfig.maxNumTokens {
       litert_lm_engine_settings_set_max_num_tokens(settings, Int32(maxNumTokens))
     }
+    if let maxNumImages = engineConfig.maxNumImages {
+      litert_lm_engine_settings_set_max_num_images(settings, Int32(maxNumImages))
+    }
     if let cacheDir = engineConfig.cacheDir {
       litert_lm_engine_settings_set_cache_dir(settings, cacheDir)
     }

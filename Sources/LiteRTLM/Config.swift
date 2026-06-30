@@ -61,6 +61,11 @@ public struct EngineConfig {
   public let loraRank: Int?
   /// The rank of the audio LoRA weights. If 0 or nil, audio LoRA is disabled.
   public let audioLoraRank: Int?
+  /// The maximum number of images that can be held in a single conversation (the
+  /// vision-embedding slot count). The engine default is 1, so a second image in
+  /// the same conversation overwrites the first; set this > 1 for multi-image chats.
+  /// When `nil`, use the engine default.
+  public let maxNumImages: Int?
 
   /// - Parameters:
   ///   - modelPath: The file path to the LiteRT-LM model.
@@ -83,10 +88,14 @@ public struct EngineConfig {
     maxNumTokens: Int? = nil,
     cacheDir: String? = nil,
     loraRank: Int? = nil,
-    audioLoraRank: Int? = nil
+    audioLoraRank: Int? = nil,
+    maxNumImages: Int? = nil
   ) throws {
     if let maxNumTokens, maxNumTokens <= 0 {
       throw LiteRTLMError.config(.invalidMaxNumTokens)
+    }
+    if let maxNumImages, maxNumImages < 0 {
+      throw LiteRTLMError.config(.invalidMaxNumImages(count: maxNumImages))
     }
     self.modelPath = modelPath
     self.backend = backend
@@ -96,6 +105,7 @@ public struct EngineConfig {
     self.cacheDir = cacheDir
     self.loraRank = loraRank
     self.audioLoraRank = audioLoraRank
+    self.maxNumImages = maxNumImages
   }
 }
 
