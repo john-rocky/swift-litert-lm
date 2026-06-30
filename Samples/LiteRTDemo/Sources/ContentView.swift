@@ -512,14 +512,14 @@ final class ChatViewModel: ObservableObject {
         // warmup conversation trips the runtime's KV-cache buffer copy in
         // CreateNewContext on some converted .litertlm (tensor_buffer error).
         loaded = try await LiteRTChat(
-          huggingFaceRepo: repo, fileName: file, modalities: multimodal ? .all : [],
+          huggingFaceRepo: repo, fileName: file, modalities: multimodal ? .textImage : [],
           maxTokens: 512, enableBenchmark: true, prewarm: false, onDownloadProgress: onProgress)
       case .localFile(let url, let multimodal):
         // Hold the security scope open while the engine has the file mapped.
         _ = url.startAccessingSecurityScopedResource()
         securityScopedURL = url
         loaded = try await LiteRTChat(
-          modelFileURL: url, modalities: multimodal ? .all : [],
+          modelFileURL: url, modalities: multimodal ? .textImage : [],
           maxTokens: 512, enableBenchmark: true, prewarm: false)
       }
       self.chat = loaded
