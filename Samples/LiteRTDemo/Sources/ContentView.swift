@@ -371,6 +371,37 @@ private struct ModelPickerView: View {
           } label: {
             row("DeepSeek-R1-Distill-Qwen-1.5B", "reasoning · int4 · ~1.0 GB · downloads on first use", selected: false)
           }
+          // Vision-language models — pass multimodal: true so the engine brings up
+          // the image tower (.textImage) regardless of the toggle. Attach a photo
+          // and ask. fast_vlm bundles (litert-community); single image per chat.
+          Button {
+            pick(.huggingFace(
+              repo: "litert-community/InternVL3-2B",
+              file: "InternVL3-2B.litertlm", multimodal: true))
+          } label: {
+            row("InternVL3-2B · image", "vision · int4 · ~1.4 GB · downloads on first use", selected: false)
+          }
+          Button {
+            pick(.huggingFace(
+              repo: "litert-community/InternVL3-1B",
+              file: "InternVL3-1B.litertlm", multimodal: true))
+          } label: {
+            row("InternVL3-1B · image", "vision · int4 · ~0.7 GB · downloads on first use", selected: false)
+          }
+          Button {
+            pick(.huggingFace(
+              repo: "litert-community/LLaVA-OneVision-0.5B",
+              file: "LLaVA-OneVision-0.5B.litertlm", multimodal: true))
+          } label: {
+            row("LLaVA-OneVision-0.5B · image", "vision · int4 · ~0.8 GB · downloads on first use", selected: false)
+          }
+          Button {
+            pick(.huggingFace(
+              repo: "litert-community/SmolVLM2-500M",
+              file: "SmolVLM2-500M.litertlm", multimodal: true))
+          } label: {
+            row("SmolVLM2-500M · image", "vision · int4 · ~0.4 GB · downloads on first use", selected: false)
+          }
           TextField("owner/repo", text: $repo)
             .textInputAutocapitalization(.never).autocorrectionDisabled().font(.callout)
           TextField("file.litertlm", text: $file)
@@ -386,8 +417,9 @@ private struct ModelPickerView: View {
         }
 
         Section {
-          Text("Gemma 4 E2B and the OLMo-2-1B / SmolLM3-3B / Ministral-3-3B / Llama-3.2-3B presets "
-            + "are verified on device (iPhone 17 Pro). Other models run through the same engine — "
+          Text("Text presets (OLMo-2-1B / SmolLM3-3B / Ministral-3-3B / Llama-3.2-3B) and InternVL3-2B "
+            + "are verified on device (iPhone 17 Pro). The `· image` presets are vision models — pick one, "
+            + "attach a photo, and ask (one image per chat). Other models run through the same engine — "
             + "bring any LiteRT-LM `.litertlm`.")
             .font(.caption).foregroundStyle(.secondary)
         }
@@ -513,14 +545,16 @@ final class ChatViewModel: ObservableObject {
         // CreateNewContext on some converted .litertlm (tensor_buffer error).
         loaded = try await LiteRTChat(
           huggingFaceRepo: repo, fileName: file, modalities: multimodal ? .textImage : [],
-          maxTokens: 512, enableBenchmark: true, prewarm: false, onDownloadProgress: onProgress)
+          // VLMs need room for the image soft tokens (e.g. LLaVA-OV injects 730) + the
+          // prompt + the answer, so give multimodal loads the full 2048-token budget.
+          maxTokens: multimodal ? 2048 : 512, enableBenchmark: true, prewarm: false, onDownloadProgress: onProgress)
       case .localFile(let url, let multimodal):
         // Hold the security scope open while the engine has the file mapped.
         _ = url.startAccessingSecurityScopedResource()
         securityScopedURL = url
         loaded = try await LiteRTChat(
           modelFileURL: url, modalities: multimodal ? .textImage : [],
-          maxTokens: 512, enableBenchmark: true, prewarm: false)
+          maxTokens: multimodal ? 2048 : 512, enableBenchmark: true, prewarm: false)
       }
       self.chat = loaded
       phase = .ready
