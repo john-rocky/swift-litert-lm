@@ -272,7 +272,9 @@ private struct MessageBubble: View {
 // MARK: - Model picker
 
 /// Choose the model: the bundled, device-verified Gemma 4 E2B, any Hugging Face
-/// `.litertlm` repo (downloaded on first use), or a local `.litertlm` file.
+/// `.litertlm` repo (downloaded on first use), or a local `.litertlm` file. Also
+/// lists the `.litertlm` files already on the device so they can be deleted to
+/// reclaim storage.
 private struct ModelPickerView: View {
   @ObservedObject var vm: ChatViewModel
   @Environment(\.dismiss) private var dismiss
@@ -281,17 +283,51 @@ private struct ModelPickerView: View {
   @State private var file = "gemma-4-E4B-it.litertlm"
   @State private var multimodal = false
   @State private var showImporter = false
-  @State private var docsModels: [URL] = []
+  @State private var docsModels: [DeviceModelFile] = []
+  @State private var downloadedModels: [DeviceModelFile] = []
+  @State private var pendingDelete: DeviceModelFile?
+  @State private var deleteError: String?
 
-  /// `.litertlm` files sitting in the app's Documents (pushed via `devicectl
-  /// device copy to … --destination Documents/X.litertlm`). Listed so they load
-  /// with one tap — no Files navigation, no re-download.
-  private func scanDocsModels() {
+  /// One `.litertlm` file sitting on the device, with its size for the "free
+  /// space" UX.
+  struct DeviceModelFile: Identifiable, Equatable {
+    let id: String        // standardized absolute path
+    let url: URL
+    let name: String
+    let byteSize: Int64
+    var sizeText: String { ByteCountFormatter.string(fromByteCount: byteSize, countStyle: .file) }
+  }
+
+  /// Enumerate the `.litertlm` files on disk: user files pushed into Documents
+  /// (via `devicectl device copy to … --destination Documents/X.litertlm`) and
+  /// models downloaded into Application Support (Hugging Face fetches + the
+  /// bundled Gemma). Documents files load with one tap; both can be deleted.
+  private func scanOnDeviceModels() {
     let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
-    docsModels = ((try? FileManager.default.contentsOfDirectory(
-      at: docs ?? URL(fileURLWithPath: "/"), includingPropertiesForKeys: nil)) ?? [])
+    docsModels = litertlmFiles(in: docs)
+    downloadedModels = litertlmFiles(in: try? LiteRTChat.defaultStorageDirectory())
+  }
+
+  private func litertlmFiles(in dir: URL?) -> [DeviceModelFile] {
+    guard let dir else { return [] }
+    let urls = (try? FileManager.default.contentsOfDirectory(
+      at: dir, includingPropertiesForKeys: [.fileSizeKey])) ?? []
+    return urls
       .filter { $0.pathExtension == "litertlm" }
-      .sorted { $0.lastPathComponent < $1.lastPathComponent }
+      .map { url in
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+        return DeviceModelFile(
+          id: url.standardizedFileURL.path, url: url,
+          name: url.deletingPathExtension().lastPathComponent, byteSize: Int64(size))
+      }
+      .sorted { $0.name < $1.name }
+  }
+
+  private func isLoaded(_ m: DeviceModelFile) -> Bool { vm.loadedModelPath == m.id }
+
+  private func confirmDelete(_ m: DeviceModelFile) {
+    if let err = vm.deleteModelFile(at: m.url) { deleteError = err }
+    scanOnDeviceModels()
   }
 
   var body: some View {
@@ -305,12 +341,46 @@ private struct ModelPickerView: View {
 
         if !docsModels.isEmpty {
           Section("On this device (Documents)") {
-            ForEach(docsModels, id: \.self) { url in
-              Button { pick(.localFile(url, multimodal: multimodal)) } label: {
-                row(url.deletingPathExtension().lastPathComponent,
-                    "local · pushed to Documents", selected: false)
+            ForEach(docsModels) { m in
+              Button { pick(.localFile(m.url, multimodal: multimodal)) } label: {
+                row(m.name, "local · pushed to Documents · \(m.sizeText)", selected: isLoaded(m))
+              }
+              .swipeActions(edge: .trailing) {
+                Button(role: .destructive) { pendingDelete = m } label: {
+                  Label("Delete", systemImage: "trash")
+                }
               }
             }
+          }
+        }
+
+        if !downloadedModels.isEmpty {
+          Section {
+            ForEach(downloadedModels) { m in
+              HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(m.name).font(.body).foregroundStyle(.primary).lineLimit(1)
+                  Text(isLoaded(m) ? "downloaded · \(m.sizeText) · in use"
+                                   : "downloaded · \(m.sizeText)")
+                    .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button(role: .destructive) { pendingDelete = m } label: {
+                  Image(systemName: "trash").foregroundStyle(.red)
+                }
+                .buttonStyle(.borderless)
+              }
+              .swipeActions(edge: .trailing) {
+                Button(role: .destructive) { pendingDelete = m } label: {
+                  Label("Delete", systemImage: "trash")
+                }
+              }
+            }
+          } header: {
+            Text("Downloaded models")
+          } footer: {
+            Text("Models fetched from Hugging Face and the bundled Gemma 4 land here. "
+              + "Delete to free space — they re-download the next time you pick them.")
           }
         }
 
@@ -430,7 +500,27 @@ private struct ModelPickerView: View {
       .fileImporter(isPresented: $showImporter, allowedContentTypes: [.data]) { result in
         if case .success(let url) = result { pick(.localFile(url, multimodal: multimodal)) }
       }
-      .onAppear { scanDocsModels() }
+      .onAppear { scanOnDeviceModels() }
+      .confirmationDialog(
+        "Delete model?",
+        isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+        titleVisibility: .visible,
+        presenting: pendingDelete
+      ) { m in
+        Button("Delete \(m.name)", role: .destructive) { confirmDelete(m) }
+        Button("Cancel", role: .cancel) {}
+      } message: { m in
+        Text("Frees \(m.sizeText). A downloaded model re-downloads the next time you "
+          + "pick it; a Documents file must be pushed to the device again.")
+      }
+      .alert(
+        "Couldn't delete",
+        isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })
+      ) {
+        Button("OK", role: .cancel) {}
+      } message: {
+        Text(deleteError ?? "")
+      }
     }
   }
 
@@ -574,6 +664,34 @@ final class ChatViewModel: ObservableObject {
       url.stopAccessingSecurityScopedResource()
       securityScopedURL = nil
     }
+  }
+
+  // MARK: Model files on disk
+
+  /// Standardized absolute path of the currently loaded model file, or nil when
+  /// no engine is up. Lets the picker flag (and safely delete) the model that is
+  /// in use right now.
+  var loadedModelPath: String? {
+    guard let path = chat?.modelPath else { return nil }
+    return URL(fileURLWithPath: path).standardizedFileURL.path
+  }
+
+  /// Delete an on-device `.litertlm` file to reclaim storage. If it is the model
+  /// currently loaded, the engine is released first so its memory mapping is
+  /// dropped before the file is unlinked. Any leftover download-staging siblings
+  /// (`.partial` / `.dl-bits`) are removed too. Returns an error message on
+  /// failure, or nil on success.
+  func deleteModelFile(at url: URL) -> String? {
+    if loadedModelPath == url.standardizedFileURL.path { releaseEngine() }
+    let fm = FileManager.default
+    do {
+      try fm.removeItem(at: url)
+    } catch {
+      return error.localizedDescription
+    }
+    try? fm.removeItem(at: url.appendingPathExtension("partial"))
+    try? fm.removeItem(at: url.appendingPathExtension("dl-bits"))
+    return nil
   }
 
   // MARK: Attachments
