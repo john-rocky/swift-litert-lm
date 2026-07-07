@@ -56,10 +56,10 @@ let package = Package(
         .target(name: "CLiteRTLM", condition: .when(platforms: [.iOS])),
         .target(name: "CLiteRTLM_mac", condition: .when(platforms: [.macOS])),
       ],
-      path: "Sources/LiteRTLM",
-      linkerSettings: [
-        .unsafeFlags(["-Xlinker", "-all_load"])
-      ]
+      path: "Sources/LiteRTLM"
+      // No linkerSettings: the vendored binaries are dynamic (an iOS dynamic
+      // framework and a macOS dylib), and unsafe flags would make the package
+      // unusable as a remote SwiftPM dependency.
     ),
 
     // ── Our layer: Easy mode + downloader + model catalog (+ FM mode later) ──
