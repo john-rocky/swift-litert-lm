@@ -6,7 +6,9 @@ of `swift-litert-lm` so it can be proposed upstream to
 API. It compiles against **only the LiteRT-LM core Swift wrapper** (`LiteRTLM` —
 `Engine` / `Conversation` / `Message` / …) plus Apple's `FoundationModels`.
 
-`swift build` here proves exactly that: no app dependencies, no core changes.
+`swift build` here proves exactly that: no app dependencies, and the only core
+change is the two-line `Hashable, Sendable` conformance on `Backend` /
+`EngineConfig` described under Design.
 
 ## What it is
 
@@ -69,7 +71,8 @@ model path that does not exist — which makes them safe to run in CI.
 
 ## Non-invasive / good-citizen
 
-Beyond "no core changes," the adapter is careful not to overstep the existing API:
+Beyond keeping core changes to that one synthesized conformance, the adapter is
+careful not to overstep the existing API:
 
 - **Honors the caller's `GenerationOptions`.** `temperature`, `.greedy`,
   `.random(top:)`, and `.random(probabilityThreshold:)` are mapped to LiteRT's
