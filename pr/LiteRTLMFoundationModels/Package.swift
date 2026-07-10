@@ -42,5 +42,14 @@ let package = Package(
         .product(name: "LiteRTLM", package: "swift-litert-lm"),
       ]
     ),
+    // Unit tests that need no model file on disk, so they run in CI.
+    //   swift test
+    .testTarget(
+      name: "LiteRTLMFoundationModelsTests",
+      dependencies: [
+        "LiteRTLMFoundationModels",
+        .product(name: "LiteRTLM", package: "swift-litert-lm"),
+      ]
+    ),
   ]
 )

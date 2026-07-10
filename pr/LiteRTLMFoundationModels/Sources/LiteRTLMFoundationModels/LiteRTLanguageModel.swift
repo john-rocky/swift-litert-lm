@@ -48,25 +48,26 @@ public struct LiteRTLanguageModel: LanguageModel {
   public let capabilities: LanguageModelCapabilities
   public let executorConfiguration: LiteRTExecutor.Configuration
 
-  /// Build from an `EngineConfig` (the primary initializer). The adapter rebuilds
-  /// the engine lazily and may reuse it across sessions, so it captures the
-  /// config's `modelPath` / `backend` / vision+audio backends / `maxNumTokens`.
+  /// Build from an `EngineConfig` (the primary initializer). The whole config is
+  /// carried through to the engine verbatim — including `cacheDir`, `loraRank`,
+  /// `audioLoraRank` and `maxNumImages`.
   ///
   /// - Parameters:
   ///   - engineConfig: How to build the LiteRT engine.
   ///   - visualTokenBudget: Per-image visual-token cap (an `ExperimentalFlags`
   ///     value, not part of `EngineConfig`); nil = engine default.
   public init(engineConfig: EngineConfig, visualTokenBudget: Int32? = nil) {
-    self.init(
-      modelPath: engineConfig.modelPath,
-      backend: engineConfig.backend,
-      visionBackend: engineConfig.visionBackend,
-      audioBackend: engineConfig.audioBackend,
-      visualTokenBudget: visualTokenBudget,
-      maxTokens: engineConfig.maxNumTokens)
+    self.executorConfiguration = LiteRTExecutor.Configuration(
+      engineConfig: engineConfig, visualTokenBudget: visualTokenBudget)
+    var capabilities: [LanguageModelCapabilities.Capability] = [.guidedGeneration, .toolCalling]
+    if engineConfig.visionBackend != nil { capabilities.append(.vision) }
+    self.capabilities = LanguageModelCapabilities(capabilities: capabilities)
   }
 
   /// Build from a model path and explicit settings (sugar over `init(engineConfig:)`).
+  ///
+  /// Unlike `init(engineConfig:)`, this initializer supplies a `cacheDir` default:
+  /// the app's Caches directory, which is writable on every Apple platform.
   ///
   /// - Parameters:
   ///   - modelPath: Absolute path to an on-disk `.litertlm`.
@@ -75,21 +76,25 @@ public struct LiteRTLanguageModel: LanguageModel {
   ///     that tower off (the safe default for a text-only model).
   ///   - visualTokenBudget: Per-image visual-token cap (nil = engine default).
   ///   - maxTokens: KV/context budget (nil = model/engine default).
+  ///   - cacheDir: Where the engine writes its cache files (nil = the app's Caches
+  ///     directory).
+  /// - Throws: `LiteRTLMError` if `maxTokens` is less than or equal to 0.
   public init(
     modelPath: String,
     backend: Backend = .gpu,
     visionBackend: Backend? = nil,
     audioBackend: Backend? = nil,
     visualTokenBudget: Int32? = nil,
-    maxTokens: Int? = 2048
-  ) {
-    self.executorConfiguration = LiteRTExecutor.Configuration(
-      modelPath: modelPath, backend: backend,
-      visionBackend: visionBackend, audioBackend: audioBackend,
-      visualTokenBudget: visualTokenBudget, maxTokens: maxTokens)
-    var capabilities: [LanguageModelCapabilities.Capability] = [.guidedGeneration, .toolCalling]
-    if visionBackend != nil { capabilities.append(.vision) }
-    self.capabilities = LanguageModelCapabilities(capabilities: capabilities)
+    maxTokens: Int? = 2048,
+    cacheDir: String? = nil
+  ) throws {
+    let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+    self.init(
+      engineConfig: try EngineConfig(
+        modelPath: modelPath, backend: backend,
+        visionBackend: visionBackend, audioBackend: audioBackend,
+        maxNumTokens: maxTokens, cacheDir: cacheDir ?? caches?.path),
+      visualTokenBudget: visualTokenBudget)
   }
 
   /// Release every cached LiteRT engine built for FM sessions, freeing their
@@ -107,41 +112,34 @@ public struct LiteRTLanguageModel: LanguageModel {
 public final class LiteRTExecutor: LanguageModelExecutor {
   public typealias Model = LiteRTLanguageModel
 
-  /// What engine to build. The actual (async-init) engine is created lazily and
-  /// shared per `modelPath` (the cache keys on the path alone, so two sessions
-  /// over the same file reuse one engine).
-  public struct Configuration: Hashable, @unchecked Sendable {
-    public let modelPath: String
-    let backend: Backend
-    let visionBackend: Backend?
-    let audioBackend: Backend?
-    let visualTokenBudget: Int32?
-    let maxTokens: Int?
+  /// What engine to build. FM requires this to be a `Hashable` value, so it
+  /// cannot hold a live `Engine`; the engine is built lazily and shared across
+  /// every executor whose configuration compares equal.
+  ///
+  /// Wrapping `EngineConfig` whole (rather than mirroring a subset of its fields)
+  /// means every engine setting — `cacheDir`, `loraRank`, `audioLoraRank`,
+  /// `maxNumImages`, and anything the core adds later — flows through unchanged,
+  /// and equality covers all of them.
+  public struct Configuration: Hashable, Sendable {
+    public let engineConfig: EngineConfig
+    /// A process-wide `ExperimentalFlags` value, so it is not part of `EngineConfig`.
+    public let visualTokenBudget: Int32?
 
-    public init(
-      modelPath: String, backend: Backend = .gpu,
-      visionBackend: Backend? = nil, audioBackend: Backend? = nil,
-      visualTokenBudget: Int32? = nil, maxTokens: Int? = 2048
-    ) {
-      self.modelPath = modelPath
-      self.backend = backend
-      self.visionBackend = visionBackend
-      self.audioBackend = audioBackend
+    public var modelPath: String { engineConfig.modelPath }
+
+    public init(engineConfig: EngineConfig, visualTokenBudget: Int32? = nil) {
+      self.engineConfig = engineConfig
       self.visualTokenBudget = visualTokenBudget
-      self.maxTokens = maxTokens
     }
-
-    // One engine per file: hash/compare on the path only.
-    public static func == (a: Configuration, b: Configuration) -> Bool { a.modelPath == b.modelPath }
-    public func hash(into hasher: inout Hasher) { hasher.combine(modelPath) }
   }
 
   private let engine: LazyEngine
 
   public init(configuration: Configuration) throws {
-    // Share one engine per configuration across executors. FM may build a new
-    // executor per session (e.g. a session created with tools), and each engine
-    // loads multi-GB weights — without sharing, a second session OOMs the app.
+    // Share one engine per configuration across executors. FM builds a new
+    // executor per session (a plain session and a tool-enabled session over the
+    // same model yield two executors), and each engine loads multi-GB weights —
+    // without sharing, the second session OOMs the app.
     self.engine = EngineCache.shared.engine(for: configuration)
   }
 
@@ -409,6 +407,13 @@ final class EngineCache: @unchecked Sendable {
   private let lock = NSLock()
   private var engines: [LiteRTExecutor.Configuration: LazyEngine] = [:]
 
+  /// How many distinct engines are currently held. Not part of the public API.
+  var count: Int {
+    lock.lock()
+    defer { lock.unlock() }
+    return engines.count
+  }
+
   func engine(for configuration: LiteRTExecutor.Configuration) -> LazyEngine {
     lock.lock()
     defer { lock.unlock() }
@@ -454,13 +459,7 @@ actor LazyEngine {
       ExperimentalFlags.optIntoExperimentalAPIs()
       ExperimentalFlags.visualTokenBudget = budget
     }
-    let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
-    let config = try EngineConfig(
-      modelPath: configuration.modelPath, backend: configuration.backend,
-      visionBackend: configuration.visionBackend,
-      audioBackend: configuration.audioBackend,
-      maxNumTokens: configuration.maxTokens, cacheDir: caches?.path)
-    let created = Engine(engineConfig: config)
+    let created = Engine(engineConfig: configuration.engineConfig)
     try await created.initialize()
     engine = created
     return created

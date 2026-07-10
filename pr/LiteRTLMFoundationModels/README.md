@@ -37,9 +37,13 @@ It provides:
 
 ## Design (why it's mergeable)
 
-- **Core-only deps.** Uses just the existing public `Engine` / `EngineConfig` /
-  `Conversation` / `Message` / `SamplerConfig` / `Backend` / `ExperimentalFlags` /
-  `Tool` API. **No changes to the core are required.**
+- **Core-only deps, one two-line core change.** Uses just the existing public
+  `Engine` / `EngineConfig` / `Conversation` / `Message` / `SamplerConfig` /
+  `Backend` / `ExperimentalFlags` / `Tool` API. The single change required of the
+  core is that `Backend` and `EngineConfig` become `Hashable, Sendable` — Apple's
+  `LanguageModelExecutor` declares `associatedtype Configuration: Hashable & Sendable`,
+  so the adapter cannot carry an `EngineConfig` without it. Both conformances are
+  synthesized; no behaviour changes.
 - **Zero impact on other platforms.** Everything is wrapped in
   `#if canImport(FoundationModels)` + `@available(iOS 27.0, macOS 27.0, *)`, so on
   Linux / Android / Windows it compiles to nothing. For the actual PR these files
@@ -49,10 +53,19 @@ It provides:
   executor the full conversation); LiteRT-LM is stateful. We rebuild a fresh
   LiteRT `Conversation` from the transcript per turn — correct and simple; an
   incremental KV fast-path is a later optimization.
-- **One engine per model file.** `EngineCache` shares a single loaded engine per
-  `Configuration` (keyed on `modelPath`). FM may build a second executor for a
-  tool-enabled session; without sharing, the multi-GB weights would load twice
-  and OOM. `LiteRTLanguageModel.releaseCachedEngines()` frees them.
+- **One engine per distinct configuration.** FM builds one executor per session —
+  a plain session and a tool-enabled session over the same model yield two — and
+  each engine loads multi-GB weights, so without sharing the second session OOMs.
+  `EngineCache` collapses them: `Configuration` wraps `EngineConfig` whole, so
+  every engine setting flows through and equality covers all of them.
+  `LiteRTLanguageModel.releaseCachedEngines()` frees them.
+
+## Tests
+
+`swift test` needs **no model file**: `LiteRTExecutor.init` only builds a
+`LazyEngine`, and the weights are read on the first `respond`. So engine sharing,
+configuration identity, and capability derivation are all observable against a
+model path that does not exist — which makes them safe to run in CI.
 
 ## Non-invasive / good-citizen
 
@@ -66,16 +79,22 @@ Beyond "no core changes," the adapter is careful not to overstep the existing AP
   passes a `visualTokenBudget`. An app that doesn't set one sees its flags
   untouched.
 
-Two design points worth confirming with maintainers (kept explicit, not hidden):
+One design point worth confirming with maintainers (kept explicit, not hidden):
 
-- **`EngineCache` is a process-wide singleton** keyed on `modelPath`. It's there
-  because FM may build a second executor for a tool-enabled session and the
-  multi-GB weights must not load twice. A non-singleton / opt-in ownership model
-  is possible if preferred.
-- **`init(engineConfig:)` captures a subset** of `EngineConfig` (modelPath,
-  backend, vision/audio backends, maxNumTokens) — it does not yet carry
-  `loraRank` / `audioLoraRank` / a custom `cacheDir`, because the adapter must
-  rebuild engines from a `Hashable` configuration.
+- **`EngineCache` is a process-wide singleton.** FM constructs executors itself,
+  through a *synchronous* `init(configuration:)` that receives only a `Hashable`
+  value — there is no way to hand a session an already-initialized `Engine`, and
+  no way to build one inside that initializer (`Engine.initialize()` is `async`).
+  So the engine is deferred into a `LazyEngine` actor and shared through a store
+  keyed by the configuration. A non-singleton / opt-in ownership model is
+  possible, but it still has to be reachable from that synchronous init, so it
+  would look like some form of keyed store.
+
+`init(engineConfig:)` carries the caller's `EngineConfig` through verbatim,
+including `cacheDir`, `loraRank`, `audioLoraRank` and `maxNumImages`. Any field
+the core adds later flows through with no adapter change. The convenience
+`init(modelPath:…)` is the only initializer that supplies a `cacheDir` default
+(the app's Caches directory).
 
 ## Overhead vs the raw Swift API
 

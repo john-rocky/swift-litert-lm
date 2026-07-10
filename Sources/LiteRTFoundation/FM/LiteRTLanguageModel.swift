@@ -103,11 +103,11 @@ public final class LiteRTExecutor: LanguageModelExecutor {
   public typealias Model = LiteRTLanguageModel
 
   /// Lightweight description of what engine to build. The actual (async-init)
-  /// engine is created lazily by the executor and shared per `modelPath` (the
-  /// cache keys on the path alone, so two sessions over the same file reuse one
-  /// engine). Carries the engine settings explicitly so a custom local model
-  /// works without a catalog `LiteRTModel`.
-  public struct Configuration: Hashable, @unchecked Sendable {
+  /// engine is created lazily by the executor and shared across every executor
+  /// whose configuration compares equal, so two sessions over the same file and
+  /// the same settings reuse one engine. Carries the engine settings explicitly
+  /// so a custom local model works without a catalog `LiteRTModel`.
+  public struct Configuration: Hashable, Sendable {
     public let modelPath: String
     let visionBackend: Backend?
     let audioBackend: Backend?
@@ -135,9 +135,9 @@ public final class LiteRTExecutor: LanguageModelExecutor {
       self.maxTokens = maxTokens
     }
 
-    // One engine per file: hash/compare on the path only.
-    public static func == (a: Configuration, b: Configuration) -> Bool { a.modelPath == b.modelPath }
-    public func hash(into hasher: inout Hasher) { hasher.combine(modelPath) }
+    // Equality covers every field: two models over the same file but different
+    // vision/audio backends (or token budgets) genuinely need different engines,
+    // and must not collide in `EngineCache`.
   }
 
   private let engine: LazyEngine
