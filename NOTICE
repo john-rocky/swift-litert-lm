@@ -8,10 +8,17 @@ Vendored components
 ────────────────────────────────────────────────────────────────────────────
 
 Sources/LiteRTLM/
-    The thin Swift wrapper around the LiteRT-LM C API. Vendored verbatim from
+    The thin Swift wrapper around the LiteRT-LM C API. Vendored from
     google-ai-edge/litert-lm, release v0.13.1, licensed under the Apache
     License, Version 2.0. Original copyright Google LLC. See each file's header
     and the LICENSE file at the repository root.
+
+    Vendored verbatim except for one local patch, proposed upstream:
+    Config.swift declares `Backend` and `EngineConfig` as `Hashable, Sendable`
+    (they were `Equatable` and unconstrained). Apple's `LanguageModelExecutor`
+    requires `associatedtype Configuration: Hashable & Sendable`, so the
+    Foundation Models backend cannot use `EngineConfig` as its configuration
+    without this. No behaviour changes; the conformances are synthesized.
 
     We vendor these files (rather than depending on the upstream SwiftPM
     package) so the package resolves without git-lfs: the upstream repository

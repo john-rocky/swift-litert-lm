@@ -17,7 +17,7 @@ import Foundation
 /// The backend to use for the LiteRT-LM engine.
 ///
 /// Swift version of the C++'s `litert::lm::Backend`.
-public enum Backend: Equatable {
+public enum Backend: Hashable, Sendable {
   /// CPU LiteRT backend.
   case cpu(threadCount: Int? = nil)
   /// GPU LiteRT backend.
@@ -40,7 +40,7 @@ public enum Backend: Equatable {
 }
 
 /// Configuration for the LiteRT-LM engine.
-public struct EngineConfig {
+public struct EngineConfig: Hashable, Sendable {
   /// The file path to the LiteRT-LM model.
   public let modelPath: String
   /// The backend to use for the engine.
