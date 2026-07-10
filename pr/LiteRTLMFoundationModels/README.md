@@ -10,6 +10,20 @@ API. It compiles against **only the LiteRT-LM core Swift wrapper** (`LiteRTLM` �
 change is the two-line `Hashable, Sendable` conformance on `Backend` /
 `EngineConfig` described under Design.
 
+## Build requirements
+
+**Xcode 27.0 beta 3 or later.** The FoundationModels API churned between the
+June 27.0 betas and beta 3:
+
+- `GenerationOptions.SamplingMode.Kind` renamed its cases
+  (`top` → `randomTopK`, `nucleus` → `randomProbabilityThreshold`) —
+  source-breaking; this package uses the beta 3 names.
+- `LanguageModelExecutorGenerationChannel.send` changed from a generic
+  (`some Event`) to a concrete `Event` parameter — source-compatible but
+  ABI-breaking, so **binaries built against earlier 27.0 betas fail to launch
+  on a beta 3 OS** (dyld cannot resolve the old symbol). Rebuild anything that
+  links FoundationModels.
+
 ## What it is
 
 `LiteRTLanguageModel` conforms to the iOS 27 `LanguageModel` protocol, so a

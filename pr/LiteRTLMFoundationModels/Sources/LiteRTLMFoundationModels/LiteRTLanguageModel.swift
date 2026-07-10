@@ -61,7 +61,7 @@ public struct LiteRTLanguageModel: LanguageModel {
       engineConfig: engineConfig, visualTokenBudget: visualTokenBudget)
     var capabilities: [LanguageModelCapabilities.Capability] = [.guidedGeneration, .toolCalling]
     if engineConfig.visionBackend != nil { capabilities.append(.vision) }
-    self.capabilities = LanguageModelCapabilities(capabilities: capabilities)
+    self.capabilities = LanguageModelCapabilities(capabilities)
   }
 
   /// Build from a model path and explicit settings (sugar over `init(engineConfig:)`).
@@ -346,9 +346,9 @@ public final class LiteRTExecutor: LanguageModelExecutor {
       case .greedy:
         topK = 1
         temperature = 0.0
-      case .top(let k, _):
+      case .randomTopK(let k, _):
         topK = k
-      case .nucleus(let threshold, _):
+      case .randomProbabilityThreshold(let threshold, _):
         topP = Float(threshold)
       @unknown default:
         break
