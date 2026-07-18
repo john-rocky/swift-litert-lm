@@ -442,7 +442,7 @@ final class EngineCache: @unchecked Sendable {
 @available(iOS 27.0, macOS 27.0, *)
 actor LazyEngine {
   private let configuration: LiteRTExecutor.Configuration
-  private var engine: Engine?
+  private var engineTask: Task<Engine, Error>?
   private var warmed = false
 
   init(configuration: LiteRTExecutor.Configuration) {
@@ -450,19 +450,33 @@ actor LazyEngine {
   }
 
   func ready() async throws -> Engine {
-    if let engine { return engine }
-    // Good citizen: only touch the process-global `ExperimentalFlags` when the
-    // caller explicitly asked for a visual-token budget. An app that doesn't set
-    // one sees its global flags left untouched. (Note: the budget is itself a
-    // process-wide setting in the core, so it applies to all conversations.)
-    if let budget = configuration.visualTokenBudget {
-      ExperimentalFlags.optIntoExperimentalAPIs()
-      ExperimentalFlags.visualTokenBudget = budget
+    // Memoize the in-flight creation task, not the finished engine: awaiting
+    // `initialize()` suspends the actor, so two concurrent first calls (e.g.
+    // `prewarm` plus an immediate `respond`) would otherwise both see no engine
+    // and load the multi-GB weights twice.
+    if let engineTask { return try await engineTask.value }
+    let configuration = self.configuration
+    let task = Task {
+      // Good citizen: only touch the process-global `ExperimentalFlags` when the
+      // caller explicitly asked for a visual-token budget. An app that doesn't set
+      // one sees its global flags left untouched. (Note: the budget is itself a
+      // process-wide setting in the core, so it applies to all conversations.)
+      if let budget = configuration.visualTokenBudget {
+        ExperimentalFlags.optIntoExperimentalAPIs()
+        ExperimentalFlags.visualTokenBudget = budget
+      }
+      let created = Engine(engineConfig: configuration.engineConfig)
+      try await created.initialize()
+      return created
     }
-    let created = Engine(engineConfig: configuration.engineConfig)
-    try await created.initialize()
-    engine = created
-    return created
+    engineTask = task
+    do {
+      return try await task.value
+    } catch {
+      // A failed initialization stays retryable on the next call.
+      if engineTask == task { engineTask = nil }
+      throw error
+    }
   }
 
   func prewarmed() async throws {
@@ -474,7 +488,7 @@ actor LazyEngine {
   }
 
   func release() {
-    engine = nil
+    engineTask = nil
     warmed = false
   }
 }

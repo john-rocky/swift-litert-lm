@@ -430,7 +430,7 @@ private final class EngineCache: @unchecked Sendable {
 @available(iOS 27.0, macOS 27.0, *)
 private actor LazyEngine {
   private let configuration: LiteRTExecutor.Configuration
-  private var engine: Engine?
+  private var engineTask: Task<Engine, Error>?
   private var warmed = false
 
   init(configuration: LiteRTExecutor.Configuration) {
@@ -438,23 +438,39 @@ private actor LazyEngine {
   }
 
   func ready() async throws -> Engine {
-    if let engine { return engine }
-    // Bring up the vision + audio towers so image attachments and audio custom
-    // segments work through the FM API. Backends come from the configuration
-    // (Gemma 4 E2B: both CPU — vision Metal fails STABLEHLO_COMPOSITE, audio is
-    // CPU-only).
-    ExperimentalFlags.optIntoExperimentalAPIs()
-    if let budget = configuration.visualTokenBudget { ExperimentalFlags.visualTokenBudget = budget }
-    let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
-    let config = try EngineConfig(
-      modelPath: configuration.modelPath, backend: .gpu,
-      visionBackend: configuration.visionBackend,
-      audioBackend: configuration.audioBackend,
-      maxNumTokens: configuration.maxTokens, cacheDir: caches?.path)
-    let created = Engine(engineConfig: config)
-    try await created.initialize()
-    engine = created
-    return created
+    // Memoize the in-flight creation task, not the finished engine: awaiting
+    // `initialize()` suspends the actor, so two concurrent first calls (e.g.
+    // `prewarm` plus an immediate `respond`) would otherwise both see no engine
+    // and load the multi-GB weights twice.
+    if let engineTask { return try await engineTask.value }
+    let configuration = self.configuration
+    let task = Task {
+      // Bring up the vision + audio towers so image attachments and audio custom
+      // segments work through the FM API. Backends come from the configuration
+      // (Gemma 4 E2B: both CPU — vision Metal fails STABLEHLO_COMPOSITE, audio is
+      // CPU-only).
+      ExperimentalFlags.optIntoExperimentalAPIs()
+      if let budget = configuration.visualTokenBudget {
+        ExperimentalFlags.visualTokenBudget = budget
+      }
+      let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+      let config = try EngineConfig(
+        modelPath: configuration.modelPath, backend: .gpu,
+        visionBackend: configuration.visionBackend,
+        audioBackend: configuration.audioBackend,
+        maxNumTokens: configuration.maxTokens, cacheDir: caches?.path)
+      let created = Engine(engineConfig: config)
+      try await created.initialize()
+      return created
+    }
+    engineTask = task
+    do {
+      return try await task.value
+    } catch {
+      // A failed initialization stays retryable on the next call.
+      if engineTask == task { engineTask = nil }
+      throw error
+    }
   }
 
   func prewarmed() async throws {
@@ -468,7 +484,7 @@ private actor LazyEngine {
   /// Tear down the loaded engine, freeing its weights. A later `ready()`
   /// rebuilds it from scratch.
   func release() {
-    engine = nil
+    engineTask = nil
     warmed = false
   }
 }
