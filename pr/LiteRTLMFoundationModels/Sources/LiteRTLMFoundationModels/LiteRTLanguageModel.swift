@@ -37,6 +37,10 @@
 import Foundation
 import FoundationModels
 import LiteRTLM
+import OSLog
+
+private let logger = Logger(
+  subsystem: "com.google.odml.litertlm.swift", category: "FoundationModels")
 
 // MARK: - Model
 
@@ -54,8 +58,8 @@ public struct LiteRTLanguageModel: LanguageModel {
   ///
   /// - Parameters:
   ///   - engineConfig: How to build the LiteRT engine.
-  ///   - visualTokenBudget: Per-image visual-token cap (an `ExperimentalFlags`
-  ///     value, not part of `EngineConfig`); nil = engine default.
+  ///   - visualTokenBudget: Per-image visual-token cap, applied to each
+  ///     conversation created over this model; nil = engine default.
   public init(engineConfig: EngineConfig, visualTokenBudget: Int32? = nil) {
     self.executorConfiguration = LiteRTExecutor.Configuration(
       engineConfig: engineConfig, visualTokenBudget: visualTokenBudget)
@@ -122,7 +126,8 @@ public final class LiteRTExecutor: LanguageModelExecutor {
   /// and equality covers all of them.
   public struct Configuration: Hashable, Sendable {
     public let engineConfig: EngineConfig
-    /// A process-wide `ExperimentalFlags` value, so it is not part of `EngineConfig`.
+    /// Per-image visual-token cap, applied to each conversation this executor
+    /// creates. A conversation-level setting, so it is not part of `EngineConfig`.
     public let visualTokenBudget: Int32?
 
     public var modelPath: String { engineConfig.modelPath }
@@ -134,13 +139,17 @@ public final class LiteRTExecutor: LanguageModelExecutor {
   }
 
   private let engine: LazyEngine
+  private let visualTokenBudget: Int32?
 
   public init(configuration: Configuration) throws {
-    // Share one engine per configuration across executors. FM builds a new
-    // executor per session (a plain session and a tool-enabled session over the
-    // same model yield two executors), and each engine loads multi-GB weights —
-    // without sharing, the second session OOMs the app.
-    self.engine = EngineCache.shared.engine(for: configuration)
+    // Share one engine per engine configuration across executors. FM builds a
+    // new executor per session (a plain session and a tool-enabled session over
+    // the same model yield two executors), and each engine loads multi-GB
+    // weights — without sharing, the second session OOMs the app.
+    // `visualTokenBudget` is applied per conversation, so it does not force a
+    // separate engine either.
+    self.engine = EngineCache.shared.engine(for: configuration.engineConfig)
+    self.visualTokenBudget = configuration.visualTokenBudget
   }
 
   public func prewarm(model: Model, transcript: Transcript) {
@@ -166,7 +175,8 @@ public final class LiteRTExecutor: LanguageModelExecutor {
       with: ConversationConfig(
         systemMessage: plan.systemMessage,
         initialMessages: plan.history,
-        samplerConfig: Self.sampler(for: request.generationOptions, structured: structured)))
+        samplerConfig: Self.sampler(for: request.generationOptions, structured: structured),
+        visualTokenBudget: visualTokenBudget))
 
     if !tools.isEmpty {
       var full = ""
@@ -366,8 +376,14 @@ public final class LiteRTExecutor: LanguageModelExecutor {
       case .text(let t):
         if !t.content.isEmpty { out.append(.text(t.content)) }
       case .attachment(let attachment):
-        if case .image(let image) = attachment.content, let png = pngData(from: image.cgImage) {
-          out.append(.imageData(png))
+        if case .image(let image) = attachment.content {
+          if let png = pngData(from: image.cgImage) {
+            out.append(.imageData(png))
+          } else {
+            // Don't fail the turn, but leave a trace: a silently missing image
+            // makes the model's answer look wrong for no visible reason.
+            logger.warning("Dropping an image attachment: PNG encoding failed.")
+          }
         }
       case .custom(let custom):
         if let audio = custom as? LiteRTAudioSegment {
@@ -399,13 +415,15 @@ public enum LiteRTFMError: Error, LocalizedError {
 
 // MARK: - Engine cache + lazy engine
 
-/// Process-wide cache of one `LazyEngine` per configuration, so multiple FM
-/// executors / sessions sharing a configuration share a single loaded engine.
+/// Process-wide cache of one `LazyEngine` per engine configuration, so multiple
+/// FM executors / sessions sharing an engine configuration share a single loaded
+/// engine — even when their conversation-level settings (`visualTokenBudget`)
+/// differ.
 @available(iOS 27.0, macOS 27.0, *)
 final class EngineCache: @unchecked Sendable {
   static let shared = EngineCache()
   private let lock = NSLock()
-  private var engines: [LiteRTExecutor.Configuration: LazyEngine] = [:]
+  private var engines: [EngineConfig: LazyEngine] = [:]
 
   /// How many distinct engines are currently held. Not part of the public API.
   var count: Int {
@@ -414,12 +432,12 @@ final class EngineCache: @unchecked Sendable {
     return engines.count
   }
 
-  func engine(for configuration: LiteRTExecutor.Configuration) -> LazyEngine {
+  func engine(for engineConfig: EngineConfig) -> LazyEngine {
     lock.lock()
     defer { lock.unlock() }
-    if let engine = engines[configuration] { return engine }
-    let engine = LazyEngine(configuration: configuration)
-    engines[configuration] = engine
+    if let engine = engines[engineConfig] { return engine }
+    let engine = LazyEngine(engineConfig: engineConfig)
+    engines[engineConfig] = engine
     return engine
   }
 
@@ -441,12 +459,12 @@ final class EngineCache: @unchecked Sendable {
 /// `respond` (which is async) and memoize the result.
 @available(iOS 27.0, macOS 27.0, *)
 actor LazyEngine {
-  private let configuration: LiteRTExecutor.Configuration
+  private let engineConfig: EngineConfig
   private var engineTask: Task<Engine, Error>?
   private var warmed = false
 
-  init(configuration: LiteRTExecutor.Configuration) {
-    self.configuration = configuration
+  init(engineConfig: EngineConfig) {
+    self.engineConfig = engineConfig
   }
 
   func ready() async throws -> Engine {
@@ -455,17 +473,9 @@ actor LazyEngine {
     // `prewarm` plus an immediate `respond`) would otherwise both see no engine
     // and load the multi-GB weights twice.
     if let engineTask { return try await engineTask.value }
-    let configuration = self.configuration
+    let engineConfig = self.engineConfig
     let task = Task {
-      // Good citizen: only touch the process-global `ExperimentalFlags` when the
-      // caller explicitly asked for a visual-token budget. An app that doesn't set
-      // one sees its global flags left untouched. (Note: the budget is itself a
-      // process-wide setting in the core, so it applies to all conversations.)
-      if let budget = configuration.visualTokenBudget {
-        ExperimentalFlags.optIntoExperimentalAPIs()
-        ExperimentalFlags.visualTokenBudget = budget
-      }
-      let created = Engine(engineConfig: configuration.engineConfig)
+      let created = Engine(engineConfig: engineConfig)
       try await created.initialize()
       return created
     }

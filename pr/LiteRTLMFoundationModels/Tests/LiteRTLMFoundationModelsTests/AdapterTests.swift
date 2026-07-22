@@ -92,6 +92,24 @@ final class AdapterTests: XCTestCase {
     }
   }
 
+  /// `visualTokenBudget` is a conversation-level setting, so two models over the
+  /// same engine configuration with different budgets share one engine (the
+  /// multi-GB weights load once).
+  func testDifferentVisualTokenBudgetsShareOneEngine() throws {
+    let config = try EngineConfig(modelPath: Self.modelPath, backend: .cpu())
+    let small = LiteRTLanguageModel(engineConfig: config, visualTokenBudget: 70)
+    let large = LiteRTLanguageModel(engineConfig: config, visualTokenBudget: 280)
+
+    let a = LanguageModelSession(model: small)
+    a.prewarm()
+    let b = LanguageModelSession(model: large)
+    b.prewarm()
+
+    withExtendedLifetime((a, b)) {
+      XCTAssertEqual(EngineCache.shared.count, 1)
+    }
+  }
+
   // MARK: - Configuration identity
 
   /// Regression: `Configuration` once hashed on `modelPath` alone, so a `.gpu`
