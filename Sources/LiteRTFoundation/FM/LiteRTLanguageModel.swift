@@ -468,7 +468,11 @@ private actor LazyEngine {
         modelPath: configuration.modelPath, backend: .gpu,
         visionBackend: configuration.visionBackend,
         audioBackend: configuration.audioBackend,
-        maxNumTokens: configuration.maxTokens, cacheDir: caches?.path)
+        maxNumTokens: configuration.maxTokens, cacheDir: caches?.path,
+        // Engine default is 1 image/conversation (a 2nd image overwrites the 1st);
+        // allow several so multi-image prompts and video frames work, matching
+        // the Easy-mode configuration.
+        maxNumImages: configuration.visionBackend != nil ? 16 : nil)
       let created = Engine(engineConfig: config)
       try await created.initialize()
       return created
