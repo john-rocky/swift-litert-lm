@@ -234,7 +234,9 @@ public actor Engine {
       throw LiteRTLMError.engine(.failedToCreateConversation)
     }
 
-    return Conversation(handle: conversationHandle, toolManager: toolManager)
+    return Conversation(
+      handle: conversationHandle, toolManager: toolManager,
+      visualTokenBudget: conversationConfig.visualTokenBudget)
   }
 
   deinit {

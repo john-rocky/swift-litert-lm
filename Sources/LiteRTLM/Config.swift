@@ -175,6 +175,12 @@ public struct ConversationConfig {
   // The file path to the Audio LoRA weights file.
   public let audioLoraPath: String?
 
+  // Experimental: the visual token budget for this conversation. When non-nil,
+  // it takes precedence over the process-wide
+  // `ExperimentalFlags.visualTokenBudget` for messages sent by this
+  // conversation. See that flag for supported models and values.
+  public let visualTokenBudget: Int32?
+
   /// - Parameters:
   ///   - systemMessage: The system message to be used in the conversation.
   ///   - initialMessages: The initial messages to populate the conversation history.
@@ -183,13 +189,16 @@ public struct ConversationConfig {
   ///     default values.
   ///   - loraPath: The file path to the Text LoRA weights file.
   ///   - audioLoraPath: The file path to the Audio LoRA weights file.
+  ///   - visualTokenBudget: Experimental: the visual token budget for this conversation. When
+  ///     non-nil, it takes precedence over the process-wide `ExperimentalFlags.visualTokenBudget`.
   public init(
     systemMessage: Message? = nil,
     initialMessages: [Message] = [],
     tools: [Tool] = [],
     samplerConfig: SamplerConfig? = nil,
     loraPath: String? = nil,
-    audioLoraPath: String? = nil
+    audioLoraPath: String? = nil,
+    visualTokenBudget: Int32? = nil
   ) {
     self.systemMessage = systemMessage.flatMap { msg in
       if msg.toString.isEmpty {
@@ -203,5 +212,6 @@ public struct ConversationConfig {
     self.samplerConfig = samplerConfig
     self.loraPath = loraPath
     self.audioLoraPath = audioLoraPath
+    self.visualTokenBudget = visualTokenBudget
   }
 }

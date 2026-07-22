@@ -51,15 +51,19 @@ public class Conversation {
 
   private var handle: CConversationHandle?
   private let toolManager: ToolManager
+  // Experimental: per-conversation visual token budget. When non-nil, it takes
+  // precedence over the process-wide `ExperimentalFlags.visualTokenBudget`.
+  private let visualTokenBudget: Int32?
 
   /// Whether the conversation is alive and ready to be used.
   public var isAlive: Bool {
     return handle != nil
   }
 
-  init(handle: CConversationHandle, toolManager: ToolManager) {
+  init(handle: CConversationHandle, toolManager: ToolManager, visualTokenBudget: Int32? = nil) {
     self.handle = handle
     self.toolManager = toolManager
+    self.visualTokenBudget = visualTokenBudget
   }
 
   deinit {
@@ -115,7 +119,7 @@ public class Conversation {
       extraContextString = String(data: extraData, encoding: .utf8)
     }
     let optionalArgs = litert_lm_conversation_optional_args_create()
-    if let visualTokenBudget = ExperimentalFlags.visualTokenBudget {
+    if let visualTokenBudget = self.visualTokenBudget ?? ExperimentalFlags.visualTokenBudget {
       litert_lm_conversation_optional_args_set_visual_token_budget(optionalArgs, Int32(visualTokenBudget))
     }
     defer { litert_lm_conversation_optional_args_delete(optionalArgs) }
@@ -235,7 +239,7 @@ public class Conversation {
     }
 
     let optionalArgs = litert_lm_conversation_optional_args_create()
-    if let visualTokenBudget = ExperimentalFlags.visualTokenBudget {
+    if let visualTokenBudget = self.visualTokenBudget ?? ExperimentalFlags.visualTokenBudget {
       litert_lm_conversation_optional_args_set_visual_token_budget(optionalArgs, Int32(visualTokenBudget))
     }
     defer { litert_lm_conversation_optional_args_delete(optionalArgs) }
