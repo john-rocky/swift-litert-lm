@@ -92,14 +92,15 @@ public final class LiteRTChat {
     var wanted = modalities ?? model.defaultModalities
     wanted.formIntersection(model.supportedModalities)
 
-    // Gemma 4's variable-resolution vision: cap per-image visual tokens to keep
-    // the GPU working set bounded. Takes effect immediately, so set before init.
     ExperimentalFlags.optIntoExperimentalAPIs()
-    if wanted.contains(.vision), let budget = model.defaultVisualTokenBudget {
-      ExperimentalFlags.visualTokenBudget = budget
-    }
     if enableBenchmark { ExperimentalFlags.enableBenchmark = true }
     ExperimentalFlags.enableSpeculativeDecoding = speculativeDecoding
+
+    // Gemma 4's variable-resolution vision: cap per-image visual tokens to keep
+    // the GPU working set bounded. Applied per conversation, not via the
+    // process-wide flag.
+    let conversationVisualTokenBudget =
+      wanted.contains(.vision) ? model.defaultVisualTokenBudget : nil
 
     let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
     // Each tower's backend is dictated by the model's section constraints, not a
@@ -127,12 +128,14 @@ public final class LiteRTChat {
     // crash), keeps the user's real conversation history clean.
     if prewarm {
       let warmup = try await engine.createConversation(
-        with: ConversationConfig(samplerConfig: activeSampler))
+        with: ConversationConfig(
+          samplerConfig: activeSampler, visualTokenBudget: conversationVisualTokenBudget))
       for try await _ in warmup.sendMessageStream(Message("Hi")) {}
     }
 
     let conversation = try await engine.createConversation(
-      with: ConversationConfig(samplerConfig: activeSampler))
+      with: ConversationConfig(
+        samplerConfig: activeSampler, visualTokenBudget: conversationVisualTokenBudget))
 
     self.init(
       model: model, modalities: wanted, modelPath: path,
@@ -179,11 +182,12 @@ public final class LiteRTChat {
     }
 
     ExperimentalFlags.optIntoExperimentalAPIs()
-    if modalities.contains(.vision), let budget = visualTokenBudget {
-      ExperimentalFlags.visualTokenBudget = budget
-    }
     if enableBenchmark { ExperimentalFlags.enableBenchmark = true }
     ExperimentalFlags.enableSpeculativeDecoding = speculativeDecoding
+
+    // Applied per conversation, not via the process-wide flag.
+    let conversationVisualTokenBudget =
+      modalities.contains(.vision) ? visualTokenBudget : nil
 
     let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
     let config = try EngineConfig(
@@ -203,11 +207,13 @@ public final class LiteRTChat {
     let activeSampler = try sampler ?? SamplerConfig(topK: 40, topP: 0.95, temperature: 0.8)
     if prewarm {
       let warmup = try await engine.createConversation(
-        with: ConversationConfig(samplerConfig: activeSampler))
+        with: ConversationConfig(
+          samplerConfig: activeSampler, visualTokenBudget: conversationVisualTokenBudget))
       for try await _ in warmup.sendMessageStream(Message("Hi")) {}
     }
     let conversation = try await engine.createConversation(
-      with: ConversationConfig(samplerConfig: activeSampler))
+      with: ConversationConfig(
+        samplerConfig: activeSampler, visualTokenBudget: conversationVisualTokenBudget))
 
     self.init(
       model: nil, modalities: modalities, modelPath: url.path,

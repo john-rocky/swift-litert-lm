@@ -20,6 +20,10 @@ import Foundation
 import FoundationModels
 import CoreGraphics
 import LiteRTLM
+import OSLog
+
+private let logger = Logger(
+  subsystem: "com.google.odml.litertlm.swift", category: "FoundationModels")
 
 /// A LiteRT-LM model exposed as an Apple Foundation Models backend.
 @available(iOS 27.0, macOS 27.0, *)
@@ -141,12 +145,14 @@ public final class LiteRTExecutor: LanguageModelExecutor {
   }
 
   private let engine: LazyEngine
+  private let visualTokenBudget: Int32?
 
   public init(configuration: Configuration) throws {
     // Share one engine per configuration across executors. FM may build a new
     // executor per session (e.g. a session created with tools), and each engine
     // loads multi-GB weights — without sharing, a second session OOMs the app.
     self.engine = EngineCache.shared.engine(for: configuration)
+    self.visualTokenBudget = configuration.visualTokenBudget
   }
 
   public func prewarm(model: Model, transcript: Transcript) {
@@ -176,7 +182,8 @@ public final class LiteRTExecutor: LanguageModelExecutor {
       with: ConversationConfig(
         systemMessage: plan.systemMessage,
         initialMessages: plan.history,
-        samplerConfig: try? SamplerConfig(topK: 40, topP: 0.95, temperature: temperature)))
+        samplerConfig: try? SamplerConfig(topK: 40, topP: 0.95, temperature: temperature),
+        visualTokenBudget: visualTokenBudget))
 
     if !tools.isEmpty {
       // Tool mode: buffer the output; if it's a tool call, emit a ToolCalls event
@@ -359,8 +366,14 @@ public final class LiteRTExecutor: LanguageModelExecutor {
       case .text(let t):
         if !t.content.isEmpty { out.append(.text(t.content)) }
       case .attachment(let attachment):
-        if case .image(let image) = attachment.content, let png = pngData(from: image.cgImage) {
-          out.append(.imageData(png))
+        if case .image(let image) = attachment.content {
+          if let png = pngData(from: image.cgImage) {
+            out.append(.imageData(png))
+          } else {
+            // Don't fail the turn, but leave a trace: a silently missing image
+            // makes the model's answer look wrong for no visible reason.
+            logger.warning("Dropping an image attachment: PNG encoding failed.")
+          }
         }
       case .custom(let custom):
         if let audio = custom as? LiteRTAudioSegment {
@@ -448,11 +461,8 @@ private actor LazyEngine {
       // Bring up the vision + audio towers so image attachments and audio custom
       // segments work through the FM API. Backends come from the configuration
       // (Gemma 4 E2B: both CPU — vision Metal fails STABLEHLO_COMPOSITE, audio is
-      // CPU-only).
-      ExperimentalFlags.optIntoExperimentalAPIs()
-      if let budget = configuration.visualTokenBudget {
-        ExperimentalFlags.visualTokenBudget = budget
-      }
+      // CPU-only). The visual-token budget is applied per conversation in
+      // `respond`, so no process-global flags are touched here.
       let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
       let config = try EngineConfig(
         modelPath: configuration.modelPath, backend: .gpu,
