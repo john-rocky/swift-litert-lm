@@ -36,7 +36,7 @@ enum CompareSelfTest {
       rawEngine = nil                                  // release before FM (memory)
 
       // ── FM path (lean adapter), its own engine ───────────────────────────
-      let model = LiteRTLMFoundationModels.LiteRTLanguageModel(modelPath: path)
+      let model = try LiteRTLMFoundationModels.LiteRTLanguageModel(modelPath: path)
       _ = try await fmGenerate(model)                  // warm up
       let fm = try await fmGenerate(model)             // timed
 

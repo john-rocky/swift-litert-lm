@@ -47,7 +47,7 @@ enum LeanFMSelfTest {
       log("model path ok")
 
       // Build the backend with the LEAN adapter only (text-only = minimal config).
-      let model = LiteRTLMFoundationModels.LiteRTLanguageModel(modelPath: path)
+      let model = try LiteRTLMFoundationModels.LiteRTLanguageModel(modelPath: path)
 
       log("respond…")
       let a = try await LanguageModelSession(model: model)
