@@ -68,6 +68,49 @@ enum FMMultimodalSelfTest {
 
     // Each modality is independent so one failure doesn't mask the others.
 
+    // Image probes in fresh sessions: separate "single vs multiple frames" from
+    // "long-session history" effects for the video-path investigation.
+    if let png = Bundle.main.url(forResource: "apple", withExtension: "png"),
+      let img = try? Data(contentsOf: png)
+    {
+      do {
+        let s1 = LanguageModelSession(model: model)
+        let a1 = try await s1.respond {
+          LiteRTVideoSegment(frames: [img])
+          "What is shown in this image? Answer briefly."
+        }
+        log("IMG1(fresh) → \(a1.content.replacingOccurrences(of: "\n", with: " "))")
+      } catch {
+        log("IMG1(fresh) FAILED: \(error.localizedDescription)")
+      }
+      do {
+        let s4 = LanguageModelSession(model: model)
+        let a4 = try await s4.respond {
+          LiteRTVideoSegment(frames: [img, img, img, img])
+          "What is shown in these images? Answer briefly."
+        }
+        log("IMG4(fresh) → \(a4.content.replacingOccurrences(of: "\n", with: " "))")
+      } catch {
+        log("IMG4(fresh) FAILED: \(error.localizedDescription)")
+      }
+      // Multi-turn: the adapter rebuilds the conversation from the transcript
+      // each turn, so images in *history* ride the initial-messages path.
+      do {
+        let s2 = LanguageModelSession(model: model)
+        _ = try await s2.respond {
+          LiteRTVideoSegment(frames: [img])
+          "What fruit is shown? One word."
+        }
+        let a2 = try await s2.respond(
+          to: "What fruit was in the image I showed you earlier? One word.")
+        log("IMG-HISTORY → \(a2.content.replacingOccurrences(of: "\n", with: " "))")
+      } catch {
+        log("IMG-HISTORY FAILED: \(error.localizedDescription)")
+      }
+    } else {
+      log("IMG probes skipped — apple.png not bundled")
+    }
+
     // Audio understanding through the FM API (custom segment) — the world-first.
     if let wav = Bundle.main.url(forResource: "have_a_wonderful_day", withExtension: "wav") {
       do {
@@ -117,6 +160,9 @@ enum FMMultimodalSelfTest {
     }
 
     // Video understanding through the FM API (app-sampled frames).
+    // sample.mp4 is a red→green→blue sequence (see fetch-test-assets.sh), so
+    // the expected answer names the three color blocks in temporal order —
+    // proof the model attended to multiple frames, not just one.
     if let mov = Bundle.main.url(forResource: "sample", withExtension: "mp4") {
       do {
         let frames = try await VideoFrameSampler.sampleFrames(from: mov, count: 4)
