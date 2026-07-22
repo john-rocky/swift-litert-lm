@@ -18,8 +18,17 @@ curl -fsSL "$BASE/runtime/components/preprocessor/testdata/apple.png" -o "$DIR/a
 curl -fsSL "$BASE/runtime/testdata/have_a_wonderful_day.wav" -o "$DIR/have_a_wonderful_day.wav"
 
 if command -v ffmpeg >/dev/null 2>&1; then
-  echo "→ sample.mp4 (3 s clip of apple.png, for the video self-test)"
-  ffmpeg -y -loop 1 -i "$DIR/apple.png" -t 3 -r 4 -vf scale=512:512 -pix_fmt yuv420p \
+  # A red → green → blue sequence (1.5 s each). Time-varying on purpose: the
+  # video self-test can only prove the model saw *multiple frames in order*
+  # if the frames differ over time — a static clip can't distinguish "saw the
+  # sequence" from "saw one frame". Expected description: three color blocks,
+  # red, green, and blue.
+  echo "→ sample.mp4 (red→green→blue sequence, for the video self-test)"
+  ffmpeg -y \
+    -f lavfi -i "color=red:size=512x512:duration=1.5:rate=15" \
+    -f lavfi -i "color=green:size=512x512:duration=1.5:rate=15" \
+    -f lavfi -i "color=blue:size=512x512:duration=1.5:rate=15" \
+    -filter_complex "[0][1][2]concat=n=3:v=1:a=0" -pix_fmt yuv420p \
     "$DIR/sample.mp4" >/dev/null 2>&1
 else
   echo "  (skipping sample.mp4 — ffmpeg not found)"
