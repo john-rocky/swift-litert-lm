@@ -19,7 +19,7 @@
 // capability derivation are all observable against a model path that does not
 // exist — which makes them safe to run in CI.
 
-#if canImport(FoundationModels)
+#if canImport(FoundationModels) && compiler(>=6.4)
 
 import FoundationModels
 import LiteRTLM

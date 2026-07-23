@@ -14,7 +14,7 @@
 
 // CGImage → PNG bytes (cross-platform via ImageIO).
 
-#if canImport(FoundationModels)
+#if canImport(FoundationModels) && compiler(>=6.4)
 
 import Foundation
 import CoreGraphics

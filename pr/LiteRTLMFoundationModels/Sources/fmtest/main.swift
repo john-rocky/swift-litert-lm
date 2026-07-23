@@ -19,7 +19,7 @@
 // Drives respond / guided generation / tool calling through a real
 // `LanguageModelSession` over the LiteRT backend — no device required.
 
-#if canImport(FoundationModels)
+#if canImport(FoundationModels) && compiler(>=6.4)
 
 import Foundation
 import FoundationModels

@@ -32,7 +32,7 @@
 //
 // Depends on only the LiteRT-LM core Swift API (`LiteRTLM`) and `FoundationModels`.
 
-#if canImport(FoundationModels)
+#if canImport(FoundationModels) && compiler(>=6.4)
 
 import Foundation
 import FoundationModels
