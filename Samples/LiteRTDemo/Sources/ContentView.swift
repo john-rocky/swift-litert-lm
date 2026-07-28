@@ -98,7 +98,7 @@ struct ContentView: View {
         }
         .foregroundStyle(.primary)
       }
-      .disabled(vm.isGenerating)
+      .disabled(vm.isGenerating || vm.isLoading)
       Spacer()
       fmButton
       switch vm.phase {
@@ -625,10 +625,14 @@ final class ChatViewModel: ObservableObject {
     await load(source)
   }
 
+  var isLoading: Bool { if case .loading = phase { return true } else { return false } }
+
   /// Tear down the current model and load a different source (bundled / Hugging
-  /// Face / local file). Chat history is kept.
+  /// Face / local file). Chat history is kept. Refuses while a load is in
+  /// flight — starting a second multi-GB engine load next to a hung first one
+  /// is a guaranteed jetsam.
   func switchModel(to newSource: ModelSource) async {
-    guard !isGenerating else { return }
+    guard !isGenerating, !isLoading else { return }
     releaseEngine()
     source = newSource
     await load(newSource)
@@ -652,8 +656,12 @@ final class ChatViewModel: ObservableObject {
         let loaded: LiteRTChat
         switch src {
         case .bundledE2B:
+          // No prewarm at launch: the init-time warmup conversation is the
+          // prime suspect for the relaunch hang (engine conversation creation
+          // can block indefinitely while a previous instance's memory is
+          // reclaimed). First-turn TTFT pays a little instead.
           loaded = try await LiteRTChat(
-            .gemma4_E2B, modalities: .all, enableBenchmark: true, prewarm: true,
+            .gemma4_E2B, modalities: .all, enableBenchmark: true, prewarm: false,
             onDownloadProgress: onProgress)
         case .huggingFace(let repo, let file, let multimodal):
           // Match the conservative config the on-device self-test uses for converted
