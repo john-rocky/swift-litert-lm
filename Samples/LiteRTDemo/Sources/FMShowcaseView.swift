@@ -210,10 +210,12 @@ struct NotifyTool: FoundationModels.Tool {
   }
 
   func call(arguments: Arguments) async throws -> String {
+    // No sound: the banner's payoff is visual, and its ding would interrupt
+    // the audio session right when the speak tool starts talking (observed as
+    // the first words of the cheer getting clipped).
     let content = UNMutableNotificationContent()
     content.title = "Gemma 4"
     content.body = arguments.message
-    content.sound = .default
     try await UNUserNotificationCenter.current().add(
       UNNotificationRequest(
         identifier: UUID().uuidString, content: content,
@@ -1014,6 +1016,15 @@ final class FMShowcaseVM: ObservableObject {
     let center = UNUserNotificationCenter.current()
     center.delegate = bannerDelegate
     _ = try? await center.requestAuthorization(options: [.alert, .sound])
+    // Bring up the audio route and the TTS voice NOW (off-camera): activating
+    // the session at speak time races the hardware spin-up and clips the
+    // first words of the cheer.
+    try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
+    try? AVAudioSession.sharedInstance().setActive(true)
+    let ttsWarmup = AVSpeechUtterance(string: "ready")
+    ttsWarmup.volume = 0
+    ttsWarmup.voice = AVSpeechSynthesisVoice(language: "en-US")
+    synthesizer.speak(ttsWarmup)
     do {
       let m = try await LiteRTLanguageModel(.gemma4_E2B)
       model = m
@@ -1329,8 +1340,18 @@ final class FMShowcaseVM: ObservableObject {
     }
     speechDelegate = delegate
     synthesizer.delegate = delegate
+    // Route warmer: a MUTED utterance streams real (silent) samples first, so
+    // the output route is fully awake before the audible words start. A
+    // time-based pre-delay emits no samples and does not wake a sleeping
+    // route — observed as the first words of the cheer getting swallowed, and
+    // a longer delay just shifted the clipping later.
+    let warmer = AVSpeechUtterance(string: "okay okay")
+    warmer.volume = 0
+    warmer.voice = AVSpeechSynthesisVoice(language: "en-US")
+    synthesizer.speak(warmer)
     let utterance = AVSpeechUtterance(string: text)
     utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+    utterance.preUtteranceDelay = 0.1
     synthesizer.speak(utterance)
   }
 
@@ -1419,7 +1440,7 @@ private final class BannerDelegate: NSObject, UNUserNotificationCenterDelegate {
   func userNotificationCenter(
     _ center: UNUserNotificationCenter, willPresent notification: UNNotification
   ) async -> UNNotificationPresentationOptions {
-    [.banner, .sound]
+    [.banner]
   }
 }
 
@@ -1430,7 +1451,9 @@ private final class SpeechDelegate: NSObject, AVSpeechSynthesizerDelegate {
   func speechSynthesizer(
     _ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance
   ) {
-    onFinish()
+    // Queued utterances (the muted route warmer) also fire didFinish — only
+    // report done when nothing is left to speak.
+    if !synthesizer.isSpeaking { onFinish() }
   }
 }
 
