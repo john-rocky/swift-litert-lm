@@ -642,36 +642,49 @@ final class ChatViewModel: ObservableObject {
         if let self, case .loading = self.phase { self.phase = .loading(p.fraction) }
       }
     }
-    do {
-      let loaded: LiteRTChat
-      switch src {
-      case .bundledE2B:
-        loaded = try await LiteRTChat(
-          .gemma4_E2B, modalities: .all, enableBenchmark: true, prewarm: true,
-          onDownloadProgress: onProgress)
-      case .huggingFace(let repo, let file, let multimodal):
-        // Match the conservative config the on-device self-test uses for converted
-        // models: text-only, a moderate token budget, and no prewarm — a second
-        // warmup conversation trips the runtime's KV-cache buffer copy in
-        // CreateNewContext on some converted .litertlm (tensor_buffer error).
-        loaded = try await LiteRTChat(
-          huggingFaceRepo: repo, fileName: file, modalities: multimodal ? .textImage : [],
-          // VLMs need room for the image soft tokens (e.g. LLaVA-OV injects 730) + the
-          // prompt + the answer, so give multimodal loads the full 2048-token budget.
-          maxTokens: multimodal ? 2048 : 512, enableBenchmark: true, prewarm: false, onDownloadProgress: onProgress)
-      case .localFile(let url, let multimodal):
-        // Hold the security scope open while the engine has the file mapped.
-        _ = url.startAccessingSecurityScopedResource()
-        securityScopedURL = url
-        loaded = try await LiteRTChat(
-          modelFileURL: url, modalities: multimodal ? .textImage : [],
-          maxTokens: multimodal ? 2048 : 512, enableBenchmark: true, prewarm: false)
+    // Engine bring-up can fail transiently right after a relaunch, while the
+    // previous instance's multi-GB footprint is still being reclaimed (the
+    // classic symptom: auto-load fails at launch, works after a crash frees
+    // the memory). Give the system a moment and retry before surfacing it.
+    let attempts = 3
+    for attempt in 1...attempts {
+      do {
+        let loaded: LiteRTChat
+        switch src {
+        case .bundledE2B:
+          loaded = try await LiteRTChat(
+            .gemma4_E2B, modalities: .all, enableBenchmark: true, prewarm: true,
+            onDownloadProgress: onProgress)
+        case .huggingFace(let repo, let file, let multimodal):
+          // Match the conservative config the on-device self-test uses for converted
+          // models: text-only, a moderate token budget, and no prewarm — a second
+          // warmup conversation trips the runtime's KV-cache buffer copy in
+          // CreateNewContext on some converted .litertlm (tensor_buffer error).
+          loaded = try await LiteRTChat(
+            huggingFaceRepo: repo, fileName: file, modalities: multimodal ? .textImage : [],
+            // VLMs need room for the image soft tokens (e.g. LLaVA-OV injects 730) + the
+            // prompt + the answer, so give multimodal loads the full 2048-token budget.
+            maxTokens: multimodal ? 2048 : 512, enableBenchmark: true, prewarm: false, onDownloadProgress: onProgress)
+        case .localFile(let url, let multimodal):
+          // Hold the security scope open while the engine has the file mapped.
+          _ = url.startAccessingSecurityScopedResource()
+          securityScopedURL = url
+          loaded = try await LiteRTChat(
+            modelFileURL: url, modalities: multimodal ? .textImage : [],
+            maxTokens: multimodal ? 2048 : 512, enableBenchmark: true, prewarm: false)
+        }
+        self.chat = loaded
+        phase = .ready
+        if ProcessInfo.processInfo.environment["LITERT_DEMO"] != nil { await runDemo() }
+        return
+      } catch {
+        if attempt < attempts {
+          phase = .loading(0)
+          try? await Task.sleep(nanoseconds: 2_500_000_000)
+        } else {
+          phase = .error(error.localizedDescription)
+        }
       }
-      self.chat = loaded
-      phase = .ready
-      if ProcessInfo.processInfo.environment["LITERT_DEMO"] != nil { await runDemo() }
-    } catch {
-      phase = .error(error.localizedDescription)
     }
   }
 
