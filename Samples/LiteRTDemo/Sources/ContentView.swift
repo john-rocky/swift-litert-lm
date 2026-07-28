@@ -441,6 +441,13 @@ private struct ModelPickerView: View {
           } label: {
             row("DeepSeek-R1-Distill-Qwen-1.5B", "reasoning · int4 · ~1.0 GB · downloads on first use", selected: false)
           }
+          Button {
+            pick(.huggingFace(
+              repo: "litert-community/Ministral-3-3B-Reasoning-2512",
+              file: "model.litertlm", multimodal: false))
+          } label: {
+            row("Ministral-3-3B Reasoning", "reasoning · int4 · ~2.2 GB · GSM8K 90.7% · downloads on first use", selected: false)
+          }
           // Vision-language models — pass multimodal: true so the engine brings up
           // the image tower (.textImage) regardless of the toggle. Attach a photo
           // and ask. fast_vlm bundles (litert-community); single image per chat.
@@ -457,6 +464,20 @@ private struct ModelPickerView: View {
               file: "InternVL3-1B.litertlm", multimodal: true))
           } label: {
             row("InternVL3-1B · image", "vision · int4 · ~0.7 GB · downloads on first use", selected: false)
+          }
+          Button {
+            pick(.huggingFace(
+              repo: "litert-community/InternVL3_5-2B",
+              file: "model.litertlm", multimodal: true))
+          } label: {
+            row("InternVL3.5-2B · image", "vision · int4 · Qwen3 · ~1.6 GB · downloads on first use", selected: false)
+          }
+          Button {
+            pick(.huggingFace(
+              repo: "litert-community/InternVL3_5-4B",
+              file: "model.litertlm", multimodal: true))
+          } label: {
+            row("InternVL3.5-4B · image", "vision · int4 · Qwen3 · ~3.0 GB · downloads on first use", selected: false)
           }
           Button {
             pick(.huggingFace(

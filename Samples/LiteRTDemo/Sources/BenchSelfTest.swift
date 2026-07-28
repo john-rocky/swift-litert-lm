@@ -143,30 +143,72 @@ enum LocalModelsSelfTest {
       return
     }
 
-    let prompt = "Explain on-device AI in one short sentence."
+    // LITERT_LOCAL_DELETE=1 → remove the matching files (honours LITERT_LOCAL_ONLY) and stop.
+    if ProcessInfo.processInfo.environment["LITERT_LOCAL_DELETE"] != nil {
+      for url in files {
+        do {
+          try FileManager.default.removeItem(at: url)
+          log("  DELETED \(url.lastPathComponent)")
+        } catch {
+          log("  DELETE FAILED \(url.lastPathComponent): \(error.localizedDescription)")
+        }
+      }
+      log("DONE")
+      return
+    }
+
+    // LITERT_LOCAL_LONG=1 → Metal-System-Trace mode: high max-tokens, a
+    // long-output prompt, one warmup turn (discarded) then N measured turns on
+    // the same warm engine so there is a wide steady-state window to attach
+    // Instruments to. LITERT_LOCAL_MAXTOK / LITERT_LOCAL_TURNS tune it.
+    let env = ProcessInfo.processInfo.environment
+    let longMode = env["LITERT_LOCAL_LONG"] != nil
+    let maxTok = Int(env["LITERT_LOCAL_MAXTOK"] ?? "") ?? (longMode ? 2000 : 512)
+    let measuredTurns = Int(env["LITERT_LOCAL_TURNS"] ?? "") ?? (longMode ? 3 : 1)
+    let shortPrompt = "Explain on-device AI in one short sentence."
+    let longPrompt = "Write an extremely detailed, comprehensive essay of at "
+      + "least 1500 words about the entire history of computing: mechanical "
+      + "calculators, Babbage and Lovelace, Turing, vacuum tubes and ENIAC, the "
+      + "transistor, integrated circuits, microprocessors, personal computers, "
+      + "the internet, mobile systems-on-chip, and modern AI accelerators. "
+      + "Cover each era thoroughly with dates, names, and technical detail, and "
+      + "do not stop early."
+    let prompt = longMode ? longPrompt : shortPrompt
     for url in files {
       let name = url.lastPathComponent
       let sz = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
-      log("==== \(name) (\(mb(sz ?? 0))) ====")
+      log("==== \(name) (\(mb(sz ?? 0))) max-tok \(maxTok) ====")
       do {
         let t0 = Date()
         let chat = try await LiteRTChat(
           modelFileURL: url,
           modalities: [] as Modality,
-          maxTokens: 512,
+          maxTokens: maxTok,
           enableBenchmark: true,
           prewarm: false)
         log(String(format: "  loaded in %.1fs · footprint %@",
           Date().timeIntervalSince(t0), mb(LiteRTChat.memoryFootprintBytes())))
 
-        let genStart = Date()
-        let response = try await chat.respond(prompt)
-        log("  OUTPUT: \(response.replacingOccurrences(of: "\n", with: " ").prefix(240))")
-        let b = try chat.lastBenchmark()
-        log(String(format: "  RESULT decode %.1f tok/s · prefill %.1f tok/s · ttft %.2fs · gen %.1fs · footprint %@",
-          b.lastDecodeTokensPerSecond, b.lastPrefillTokensPerSecond,
-          b.timeToFirstTokenInSecond, Date().timeIntervalSince(genStart),
-          mb(LiteRTChat.memoryFootprintBytes())))
+        if longMode {
+          // Warmup turn (shader compile / weight conversion) — discarded.
+          _ = try await chat.respond(shortPrompt)
+          let bw = try chat.lastBenchmark()
+          log(String(format: "  warmup decode %.1f tok/s · %d tok", bw.lastDecodeTokensPerSecond,
+            bw.lastDecodeTokenCount))
+        }
+
+        for turn in 1...measuredTurns {
+          let genStart = Date()
+          let response = try await chat.respond(prompt)
+          let b = try chat.lastBenchmark()
+          log(String(format: "  turn %d RESULT decode %.1f tok/s · %d tok · prefill %.1f tok/s · ttft %.2fs · gen %.1fs · footprint %@",
+            turn, b.lastDecodeTokensPerSecond, b.lastDecodeTokenCount,
+            b.lastPrefillTokensPerSecond, b.timeToFirstTokenInSecond,
+            Date().timeIntervalSince(genStart), mb(LiteRTChat.memoryFootprintBytes())))
+          if turn == 1 {
+            log("  OUTPUT: \(response.replacingOccurrences(of: "\n", with: " ").prefix(200))")
+          }
+        }
       } catch {
         log("  FAILED: \(error.localizedDescription)")
       }
