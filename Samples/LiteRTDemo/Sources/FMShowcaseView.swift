@@ -567,7 +567,7 @@ struct FMShowcaseView: View {
         .transition(.move(edge: .bottom).combined(with: .opacity))
       }
       if vm.mapAnswer.isEmpty {
-        thinkingRow("Gemma is searching Apple Maps…")
+        thinkingRow("Gemma is searching Apple Maps")
       } else {
         answerCard { Text(vm.mapAnswer).font(.callout).lineSpacing(2) }
       }
@@ -601,8 +601,8 @@ struct FMShowcaseView: View {
               promptBubble(turn.prompt)
               if turn.answer.isEmpty {
                 thinkingRow(vm.script.agenticToolboxPrompt != nil
-                  ? "Gemma is working — watch the tools light up…"
-                  : "Gemma is choosing a tool…")
+                  ? "Gemma is working on your tasks"
+                  : "Gemma is choosing a tool")
               } else {
                 Text(turn.answer).font(.callout).lineSpacing(2)
               }
@@ -617,6 +617,9 @@ struct FMShowcaseView: View {
           }
           Color.clear.frame(height: 1).id("toolboxBottom")
         }
+        // Full-width proposal inside the ScrollView — without it, text rows
+        // size to their single-line ideal width and tail-truncate.
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
       .onChange(of: vm.toolboxTick) { _ in
         withAnimation(.easeOut(duration: 0.2)) {
@@ -661,12 +664,13 @@ struct FMShowcaseView: View {
             Label("A typed Swift value, rendered natively. No JSON, no regex.",
               systemImage: "checkmark.seal.fill")
               .font(.caption.weight(.semibold)).foregroundStyle(.green)
+              .fixedSize(horizontal: false, vertical: true)
           }
         }
       } else if let err = vm.chartError {
         answerCard { Text(err).font(.callout).foregroundStyle(.red) }
       } else {
-        thinkingRow("Gemma is filling your struct…")
+        thinkingRow("Gemma is filling your struct")
       }
       Spacer()
     }
@@ -692,6 +696,7 @@ struct FMShowcaseView: View {
           systemImage: "timer")
           .font(.callout.weight(.semibold)).foregroundStyle(.orange)
           .multilineTextAlignment(.center)
+          .fixedSize(horizontal: false, vertical: true)
       }
       Spacer()
       Button { vm.replay() } label: {
@@ -796,16 +801,18 @@ struct FMShowcaseView: View {
 
   @ViewBuilder private func streamingText(_ text: String) -> some View {
     if text.isEmpty {
-      thinkingRow("Gemma is thinking…")
+      thinkingRow("Gemma is thinking")
     } else {
       Text(text).font(.title3.weight(.medium)).lineSpacing(3)
     }
   }
 
   private func thinkingRow(_ label: String) -> some View {
-    HStack(spacing: 10) {
+    HStack(alignment: .top, spacing: 10) {
       ProgressView().controlSize(.small)
       Text(label).font(.callout).foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
 
@@ -842,8 +849,12 @@ struct FMShowcaseView: View {
           Text("· \(task.framework)").font(.caption2).foregroundStyle(.secondary)
         }
         if let call {
+          // Wrap instead of tail-truncating: layout truncation was eating the
+          // closing quote/paren of longer calls.
           Text(call).font(.caption2.monospaced().weight(.semibold))
-            .foregroundStyle(titleGradient).lineLimit(1)
+            .foregroundStyle(titleGradient)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
         }
         // The result is the scene's payoff — give it a highlight pill that
         // springs in the moment the task checks off.
@@ -1257,7 +1268,7 @@ final class FMShowcaseVM: ObservableObject {
     let notify = NotifyTool { [weak self] message in
       Task { @MainActor in
         self?.toolFired("schedule_notification", icon: "bell.badge.fill",
-          call: "schedule_notification(\"\(message.prefix(26))…\")",
+          call: "schedule_notification(\"\(Self.callPreview(message))\")",
           detail: "Real iOS banner in ~4 s — watch the top of the screen")
         self?.notificationText = message
       }
@@ -1265,7 +1276,7 @@ final class FMShowcaseVM: ObservableObject {
     let speakTool = SpeakTool { [weak self] text in
       Task { @MainActor in
         self?.toolFired("speak", icon: "waveform",
-          call: "speak(\"\(text.prefix(26))…\")",
+          call: "speak(\"\(Self.callPreview(text))\")",
           detail: "Speaking through the iPhone speaker")
         self?.speak(text)
       }
@@ -1273,7 +1284,7 @@ final class FMShowcaseVM: ObservableObject {
     let timer = TimerTool { [weak self] label in
       Task { @MainActor in
         self?.toolFired("start_run_timer", icon: "timer",
-          call: "start_run_timer(\"\(label.prefix(26))…\")",
+          call: "start_run_timer(\"\(Self.callPreview(label))\")",
           detail: "Live Activity started — it's in the Dynamic Island")
         self?.timerStarted = true
       }
@@ -1319,6 +1330,12 @@ final class FMShowcaseVM: ObservableObject {
     }
     // Leave room for the scheduled banner to drop while still on this scene.
     await hold(2.0)
+  }
+
+  /// Argument preview for the task board: ellipsized only when genuinely
+  /// long, so the rendered call always closes its quote and paren.
+  private static func callPreview(_ text: String) -> String {
+    text.count <= 48 ? text : text.prefix(48) + "…"
   }
 
   private func toolFired(_ name: String, icon: String, call: String, detail: String) {
