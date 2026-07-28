@@ -293,12 +293,22 @@ public final class LiteRTExecutor: LanguageModelExecutor {
         history.append(Message(contents: [.text(text(of: r.segments))], role: .model))
       case .toolOutput(let output):
         let result = text(of: output.segments)
+        // Keep the chain open: a bare "answer the user" here makes the model
+        // stop after one call even when the request needs several tools.
         let message = Message(
-          "Tool \"\(output.toolName)\" returned: \(result)\nUse this result to answer the user.",
+          "Tool \"\(output.toolName)\" returned: \(result)\n"
+            + "If more tool calls are needed to finish the user's request, call the "
+            + "next tool; otherwise answer the user using the results.",
           role: .user)
         if isTrigger { trigger = message } else { history.append(message) }
-      case .toolCalls:
-        history.append(Message("[the assistant called a tool]", role: .model))
+      case .toolCalls(let toolCalls):
+        // Render past calls the way the model is asked to make them. A literal
+        // "[the assistant called a tool]" placeholder here gets parroted back
+        // as the next answer at temperature 0, killing multi-step chains.
+        let rendered = toolCalls
+          .map { "{\"tool_call\": {\"name\": \"\($0.toolName)\"}}" }
+          .joined(separator: "\n")
+        history.append(Message(rendered, role: .model))
       case .reasoning:
         break
       @unknown default:
@@ -315,33 +325,154 @@ public final class LiteRTExecutor: LanguageModelExecutor {
   }
 
   /// Describe the enabled tools and the tool-call JSON format for the prompt.
+  /// Arguments are shown as a minimal example object, NOT the raw
+  /// GenerationSchema JSON — small models imitate whatever shape they see, and
+  /// a schema dump gets echoed back as nested schema-shaped "arguments".
   private static func toolInstructions(_ tools: [Transcript.ToolDefinition]) -> String {
     var lines = ["You can call tools to help answer the user. Available tools:"]
     for tool in tools {
-      let params = (try? encodeSchema(tool.parameters)) ?? "{}"
-      lines.append("- \(tool.name): \(tool.description). arguments schema: \(params)")
+      let schemaJSON = (try? encodeSchema(tool.parameters)) ?? "{}"
+      let hint = argumentsHint(fromSchemaJSON: schemaJSON) ?? schemaJSON
+      lines.append("- \(tool.name): \(tool.description). Call it with arguments like: \(hint)")
     }
     lines.append(
       "To call a tool, reply with ONLY this JSON and nothing else: "
         + "{\"tool_call\": {\"name\": \"<tool name>\", \"arguments\": { ... }}}. "
         + "If no tool is needed, answer the user directly.")
+    lines.append(
+      "Call at most one tool per reply. Never ask the user a follow-up question — "
+        + "if a detail is missing, choose a sensible value yourself.")
     return lines.joined(separator: "\n")
   }
 
   /// Parse a tool call from model output, if present and naming a known tool.
+  /// Accepts the instructed JSON shape and, as a fallback, Gemma's native
+  /// function-calling syntax (`<|tool_call>call:name{arg: "value"}<tool_call|>`),
+  /// which fine-tuned checkpoints sometimes revert to despite the instructions.
   private static func parseToolCall(from text: String, tools: [Transcript.ToolDefinition])
     -> (name: String, arguments: String)?
   {
-    guard let json = extractJSONObject(from: text),
+    // The model may batch several {"tool_call": …} objects (one per line)
+    // despite being asked for one per reply — parse the FIRST parseable one;
+    // FM feeds the result back and the model re-issues the rest next round.
+    var candidates = [text]
+    if text.contains("\n") {
+      candidates = text.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+        + candidates
+    }
+    for candidate in candidates {
+      if let hit = parseSingleToolCall(from: candidate, tools: tools) { return hit }
+    }
+    return parseNativeToolCall(from: text, tools: tools)
+  }
+
+  /// Rewrite object keys to proper quoted form, whether the model wrote them
+  /// bare ({area: …}), half-quoted ({area": …} — an ODD quote count that also
+  /// derails the string-aware brace scanners), or fully quoted. Run BEFORE
+  /// any structural extraction.
+  private static func quotedKeys(_ text: String) -> String {
+    text.replacingOccurrences(
+      of: #"([{,]\s*)"?([A-Za-z_][A-Za-z0-9_]*)"?(\s*:)"#,
+      with: "$1\"$2\"$3",
+      options: .regularExpression)
+  }
+
+  /// The instructed JSON shape, from one candidate chunk (with brace repair).
+  private static func parseSingleToolCall(from rawText: String, tools: [Transcript.ToolDefinition])
+    -> (name: String, arguments: String)?
+  {
+    let text = quotedKeys(rawText)
+    guard let json = extractJSONObject(from: text) ?? repairedJSONObject(from: text),
       let data = json.data(using: .utf8),
-      let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
       let call = obj["tool_call"] as? [String: Any],
       let name = call["name"] as? String,
       tools.contains(where: { $0.name == name })
     else { return nil }
     let args = call["arguments"] ?? [String: Any]()
     let argsData = (try? JSONSerialization.data(withJSONObject: args)) ?? Data("{}".utf8)
-    return (name, String(data: argsData, encoding: .utf8) ?? "{}")
+    let raw = String(data: argsData, encoding: .utf8) ?? "{}"
+    return (name, normalizedArguments(from: raw))
+  }
+
+  /// Gemma-native fallback: `call:<name>` followed by a balanced `{…}` argument
+  /// object. Bare identifier keys are quoted so `{text: "hi"}` parses as JSON.
+  private static func parseNativeToolCall(from text: String, tools: [Transcript.ToolDefinition])
+    -> (name: String, arguments: String)?
+  {
+    guard let marker = text.range(of: "call:") else { return nil }
+    let after = quotedKeys(String(text[marker.upperBound...]))
+    let name = String(after.prefix(while: { $0.isLetter || $0.isNumber || $0 == "_" }))
+    guard tools.contains(where: { $0.name == name }) else { return nil }
+    guard let argsRaw = extractJSONObject(from: after) ?? repairedJSONObject(from: after) else {
+      return (name, "{}")
+    }
+    return (name, normalizedArguments(from: argsRaw))
+  }
+
+  /// Build a minimal example arguments object (`{"city": "<value>"}`) from an
+  /// encoded GenerationSchema, for the tool instructions.
+  private static func argumentsHint(fromSchemaJSON json: String) -> String? {
+    guard let data = json.data(using: .utf8),
+      let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+      let properties = obj["properties"] as? [String: Any]
+    else { return nil }
+    if properties.isEmpty { return "{}" }
+    let fields = properties.keys.sorted().map { "\"\($0)\": \"<value>\"" }
+    return "{" + fields.joined(separator: ", ") + "}"
+  }
+
+  /// Salvage an argument object whose closing brace(s) were cut off: take the
+  /// first `{` through the LAST `}` present and append the closers the
+  /// string-aware depth scan says are missing.
+  private static func repairedJSONObject(from text: String) -> String? {
+    guard let start = text.firstIndex(of: "{"),
+      let lastBrace = text.lastIndex(of: "}"),
+      lastBrace > start
+    else { return nil }
+    let end = text.index(after: lastBrace)
+    var depth = 0
+    var inString = false
+    var escaped = false
+    var idx = start
+    while idx < end {
+      let ch = text[idx]
+      if inString {
+        if escaped { escaped = false } else if ch == "\\" { escaped = true }
+        else if ch == "\"" { inString = false }
+      } else if ch == "\"" {
+        inString = true
+      } else if ch == "{" {
+        depth += 1
+      } else if ch == "}" {
+        depth -= 1
+      }
+      idx = text.index(after: idx)
+    }
+    guard depth >= 0 else { return nil }
+    return String(text[start..<end]) + String(repeating: "}", count: depth)
+  }
+
+  /// Best-effort cleanup of model-written arguments: quote bare identifier
+  /// keys (`{text: "hi"}`), then unwrap a "schema echo" — a field whose value
+  /// is an object nesting the same field (`{"message": {"message": "hi",
+  /// "x-order": …}}`), which small models produce by imitating the schema.
+  private static func normalizedArguments(from raw: String) -> String {
+    for candidate in [raw, quotedKeys(raw)] {
+      guard let data = candidate.data(using: .utf8),
+        var obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+      else { continue }
+      for (key, value) in obj {
+        if let inner = value as? [String: Any], let unwrapped = inner[key] {
+          obj[key] = unwrapped
+        }
+      }
+      if let out = try? JSONSerialization.data(withJSONObject: obj),
+        let string = String(data: out, encoding: .utf8) {
+        return string
+      }
+    }
+    return "{}"
   }
 
   /// Concatenate the text of a segment list (non-text segments ignored for now).
