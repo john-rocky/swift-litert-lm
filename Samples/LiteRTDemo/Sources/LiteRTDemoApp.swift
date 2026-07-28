@@ -26,7 +26,9 @@ struct LiteRTDemoApp: App {
   @ViewBuilder private var rootView: some View {
     #if canImport(FoundationModels)
     if #available(iOS 27.0, macOS 27.0, *) {
-      if G1SelfTest.isRequested {
+      if FMShowcaseView.isStandaloneLaunch {
+        FMShowcaseView(standalone: true, variant: FMShowcaseView.standaloneVariant)
+      } else if G1SelfTest.isRequested {
         SelfTestRunnerView(title: "Running G1 (Foundation Models) self-test…") {
           await G1SelfTest.run()
         }

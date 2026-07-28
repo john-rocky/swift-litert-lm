@@ -11,23 +11,55 @@
 		36715CD49CF742DDC0299291 /* CompareSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A3C831C0FF3E39637730683 /* CompareSelfTest.swift */; };
 		3982CC52F53C70DC93DCF3E3 /* .gitkeep in Resources */ = {isa = PBXBuildFile; fileRef = 1990F8190E8E06CF8A614870 /* .gitkeep */; };
 		3BE9107624CF513F2E3FC891 /* G0SelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 035432685EAFAA748A24AA10 /* G0SelfTest.swift */; };
+		486B9DB7CDC7FD49A492F9E3 /* LiteRTDemoWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DF823491C18731CBDCADF37 /* LiteRTDemoWidgets.swift */; };
 		6455E9289B9646BEA4214565 /* question.wav in Resources */ = {isa = PBXBuildFile; fileRef = BDF02453C96B7BAE4746EA21 /* question.wav */; };
+		68452DF92568E865585C2489 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BC8D79397413AE4D1FC15FF6 /* Assets.xcassets */; };
+		72385C12DF31D3233F9D840B /* GemmaActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B876239D7A3887E118F55DC /* GemmaActivityAttributes.swift */; };
+		77814563AC4B33DD8D98B380 /* showcase.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 02DD9FC1FF026005D07E5460 /* showcase.jpg */; };
 		7858DDAC6E6B91D9F33B11C5 /* FMModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B18C11EE127A06FDA07B8B5D /* FMModeView.swift */; };
 		7C05DD08A893E8AAE69DAB02 /* apple.png in Resources */ = {isa = PBXBuildFile; fileRef = 207EF24D287022F9FE40A022 /* apple.png */; };
 		8824E0A14D3E75557513BAEC /* G1SelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB93931DAB12B7F616BA90D /* G1SelfTest.swift */; };
 		95612C854724EA892444B0D4 /* FMMultimodalSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D371B9D134D053F77286828 /* FMMultimodalSelfTest.swift */; };
+		9999841F1566E9772CD17AEF /* LiteRTDemoWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F858AB9F6DD0BBE5423196EB /* LiteRTDemoWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		9CCE59E1DB52CD7EABBF59FB /* BenchSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B47132B7AC0503FDD89F481 /* BenchSelfTest.swift */; };
+		A2F46E85E428DF02FC173CAE /* GemmaActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B876239D7A3887E118F55DC /* GemmaActivityAttributes.swift */; };
 		BFD2D77D78C60AD3B5E61B44 /* LeanFMSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF3A959496CCEFD4A6E30DF1 /* LeanFMSelfTest.swift */; };
 		D1F9035678115CCBBB2FFABA /* LiteRTFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = EE15293A02D367993C0F731F /* LiteRTFoundation */; };
 		D24298F64AB76EE7A427CB5D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F0F8B68F6A585601EDBE641 /* ContentView.swift */; };
 		D8DCD69A9094AE555FB014A4 /* MMChatSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EA39745C291E968242A46EA /* MMChatSelfTest.swift */; };
 		DED503B371A280FD05EE34A4 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 173D8A856944B56497324A6E /* AudioRecorder.swift */; };
+		E2EFF6404CF80C77CD43B1F2 /* FMShowcaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64ED0F36D110FB29162EF4D /* FMShowcaseView.swift */; };
 		EDBC0E8F0D53C9F9D5DE5BD7 /* have_a_wonderful_day.wav in Resources */ = {isa = PBXBuildFile; fileRef = 0FFE276E909E7FD41CC2E0F4 /* have_a_wonderful_day.wav */; };
 		FFA75CE73EBB8C47C8BE2E09 /* sample.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = B3026C2E0B3FD805E9DF427D /* sample.mp4 */; };
 		FFFAD57211C05702E6CB072B /* LiteRTLMFoundationModels in Frameworks */ = {isa = PBXBuildFile; productRef = 11C29AE33AA6A4F4C1644A6D /* LiteRTLMFoundationModels */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		AC8DEDF6889DC8F93533963C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 95A5591CF21ADCF8CA26464F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 59587724FD34C75DCB580A28;
+			remoteInfo = LiteRTDemoWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A6CB1F110EE374CF756F154E /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				9999841F1566E9772CD17AEF /* LiteRTDemoWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		02DD9FC1FF026005D07E5460 /* showcase.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = showcase.jpg; sourceTree = "<group>"; };
 		035432685EAFAA748A24AA10 /* G0SelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = G0SelfTest.swift; sourceTree = "<group>"; };
 		0B47132B7AC0503FDD89F481 /* BenchSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchSelfTest.swift; sourceTree = "<group>"; };
 		0DF610979BA5C25B4B8FD16C /* LiteRTLMFoundationModels */ = {isa = PBXFileReference; lastKnownFileType = folder; name = LiteRTLMFoundationModels; path = ../../pr/LiteRTLMFoundationModels; sourceTree = SOURCE_ROOT; };
@@ -36,17 +68,22 @@
 		1990F8190E8E06CF8A614870 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		207EF24D287022F9FE40A022 /* apple.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = apple.png; sourceTree = "<group>"; };
 		2A3C831C0FF3E39637730683 /* CompareSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompareSelfTest.swift; sourceTree = "<group>"; };
+		2DF823491C18731CBDCADF37 /* LiteRTDemoWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteRTDemoWidgets.swift; sourceTree = "<group>"; };
 		2EA39745C291E968242A46EA /* MMChatSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MMChatSelfTest.swift; sourceTree = "<group>"; };
 		4D371B9D134D053F77286828 /* FMMultimodalSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FMMultimodalSelfTest.swift; sourceTree = "<group>"; };
 		6F0F8B68F6A585601EDBE641 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		6F45948748095D99DE4038BB /* swift-litert-lm */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "swift-litert-lm"; path = ../..; sourceTree = SOURCE_ROOT; };
+		7B876239D7A3887E118F55DC /* GemmaActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GemmaActivityAttributes.swift; sourceTree = "<group>"; };
 		9D2B2D5362D83772972B30CE /* LiteRTDemoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteRTDemoApp.swift; sourceTree = "<group>"; };
+		A64ED0F36D110FB29162EF4D /* FMShowcaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FMShowcaseView.swift; sourceTree = "<group>"; };
 		AF3A959496CCEFD4A6E30DF1 /* LeanFMSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeanFMSelfTest.swift; sourceTree = "<group>"; };
 		B18C11EE127A06FDA07B8B5D /* FMModeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FMModeView.swift; sourceTree = "<group>"; };
 		B3026C2E0B3FD805E9DF427D /* sample.mp4 */ = {isa = PBXFileReference; path = sample.mp4; sourceTree = "<group>"; };
 		B81EA594E00E2E3485AA4CD1 /* LiteRTDemo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LiteRTDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BC8D79397413AE4D1FC15FF6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BDF02453C96B7BAE4746EA21 /* question.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = question.wav; sourceTree = "<group>"; };
 		EDB93931DAB12B7F616BA90D /* G1SelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = G1SelfTest.swift; sourceTree = "<group>"; };
+		F858AB9F6DD0BBE5423196EB /* LiteRTDemoWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = LiteRTDemoWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -79,16 +116,28 @@
 				0FFE276E909E7FD41CC2E0F4 /* have_a_wonderful_day.wav */,
 				BDF02453C96B7BAE4746EA21 /* question.wav */,
 				B3026C2E0B3FD805E9DF427D /* sample.mp4 */,
+				02DD9FC1FF026005D07E5460 /* showcase.jpg */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		49F3524BDD8686B9D6DB7D5A /* Widgets */ = {
+			isa = PBXGroup;
+			children = (
+				7B876239D7A3887E118F55DC /* GemmaActivityAttributes.swift */,
+				2DF823491C18731CBDCADF37 /* LiteRTDemoWidgets.swift */,
+			);
+			path = Widgets;
 			sourceTree = "<group>";
 		};
 		A0B0C7C943EA00FF3D5875AB = {
 			isa = PBXGroup;
 			children = (
+				BC8D79397413AE4D1FC15FF6 /* Assets.xcassets */,
 				1BB6DCAD58ABC3C901036B89 /* Packages */,
 				25CBA9D76DCE97B6789F7F37 /* Resources */,
 				BA2FC091CECFD31974A8286E /* Sources */,
+				49F3524BDD8686B9D6DB7D5A /* Widgets */,
 				FCF71CF9A4D6F68782B32A03 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -102,6 +151,7 @@
 				6F0F8B68F6A585601EDBE641 /* ContentView.swift */,
 				B18C11EE127A06FDA07B8B5D /* FMModeView.swift */,
 				4D371B9D134D053F77286828 /* FMMultimodalSelfTest.swift */,
+				A64ED0F36D110FB29162EF4D /* FMShowcaseView.swift */,
 				035432685EAFAA748A24AA10 /* G0SelfTest.swift */,
 				EDB93931DAB12B7F616BA90D /* G1SelfTest.swift */,
 				AF3A959496CCEFD4A6E30DF1 /* LeanFMSelfTest.swift */,
@@ -115,6 +165,7 @@
 			isa = PBXGroup;
 			children = (
 				B81EA594E00E2E3485AA4CD1 /* LiteRTDemo.app */,
+				F858AB9F6DD0BBE5423196EB /* LiteRTDemoWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -122,6 +173,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		59587724FD34C75DCB580A28 /* LiteRTDemoWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 05045ED024DFBD53BAFECF38 /* Build configuration list for PBXNativeTarget "LiteRTDemoWidgets" */;
+			buildPhases = (
+				B1CB33C1DF4BB2A05E6878D3 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LiteRTDemoWidgets;
+			packageProductDependencies = (
+			);
+			productName = LiteRTDemoWidgets;
+			productReference = F858AB9F6DD0BBE5423196EB /* LiteRTDemoWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		B203C66BFB9C099D5E5EE1BD /* LiteRTDemo */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 2CEBED3977DBEC883DBD085C /* Build configuration list for PBXNativeTarget "LiteRTDemo" */;
@@ -129,10 +197,12 @@
 				A5CF9B161E94242B07283906 /* Sources */,
 				E17D3715977F90ED4FB6CD24 /* Resources */,
 				4D75D66C65C2D007745D3423 /* Frameworks */,
+				A6CB1F110EE374CF756F154E /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				CF9958EB23C372259C87B935 /* PBXTargetDependency */,
 			);
 			name = LiteRTDemo;
 			packageProductDependencies = (
@@ -152,6 +222,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					59587724FD34C75DCB580A28 = {
+						ProvisioningStyle = Automatic;
+					};
 					B203C66BFB9C099D5E5EE1BD = {
 						ProvisioningStyle = Automatic;
 					};
@@ -176,6 +249,7 @@
 			projectRoot = "";
 			targets = (
 				B203C66BFB9C099D5E5EE1BD /* LiteRTDemo */,
+				59587724FD34C75DCB580A28 /* LiteRTDemoWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -186,10 +260,12 @@
 			buildActionMask = 2147483647;
 			files = (
 				3982CC52F53C70DC93DCF3E3 /* .gitkeep in Resources */,
+				68452DF92568E865585C2489 /* Assets.xcassets in Resources */,
 				7C05DD08A893E8AAE69DAB02 /* apple.png in Resources */,
 				EDBC0E8F0D53C9F9D5DE5BD7 /* have_a_wonderful_day.wav in Resources */,
 				6455E9289B9646BEA4214565 /* question.wav in Resources */,
 				FFA75CE73EBB8C47C8BE2E09 /* sample.mp4 in Resources */,
+				77814563AC4B33DD8D98B380 /* showcase.jpg in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -206,15 +282,34 @@
 				D24298F64AB76EE7A427CB5D /* ContentView.swift in Sources */,
 				7858DDAC6E6B91D9F33B11C5 /* FMModeView.swift in Sources */,
 				95612C854724EA892444B0D4 /* FMMultimodalSelfTest.swift in Sources */,
+				E2EFF6404CF80C77CD43B1F2 /* FMShowcaseView.swift in Sources */,
 				3BE9107624CF513F2E3FC891 /* G0SelfTest.swift in Sources */,
 				8824E0A14D3E75557513BAEC /* G1SelfTest.swift in Sources */,
+				A2F46E85E428DF02FC173CAE /* GemmaActivityAttributes.swift in Sources */,
 				BFD2D77D78C60AD3B5E61B44 /* LeanFMSelfTest.swift in Sources */,
 				2E354DE02016A6607DEBE636 /* LiteRTDemoApp.swift in Sources */,
 				D8DCD69A9094AE555FB014A4 /* MMChatSelfTest.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B1CB33C1DF4BB2A05E6878D3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				72385C12DF31D3233F9D840B /* GemmaActivityAttributes.swift in Sources */,
+				486B9DB7CDC7FD49A492F9E3 /* LiteRTDemoWidgets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		CF9958EB23C372259C87B935 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 59587724FD34C75DCB580A28 /* LiteRTDemoWidgets */;
+			targetProxy = AC8DEDF6889DC8F93533963C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		0E9F853523F7E1290A13D6FD /* Release */ = {
@@ -229,6 +324,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "LiteRT Demo";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record audio to ask Gemma about it.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Attach a photo or video to ask Gemma about it.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -256,6 +352,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "LiteRT Demo";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record audio to ask Gemma about it.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Attach a photo or video to ask Gemma about it.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -390,9 +487,58 @@
 			};
 			name = Debug;
 		};
+		703E66A21E5DDAD7C6529867 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Widgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.litertdemo.widgets;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		C3D909BFDFE1D14037AD3476 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Widgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.litertdemo.widgets;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		05045ED024DFBD53BAFECF38 /* Build configuration list for PBXNativeTarget "LiteRTDemoWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C3D909BFDFE1D14037AD3476 /* Debug */,
+				703E66A21E5DDAD7C6529867 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		2CEBED3977DBEC883DBD085C /* Build configuration list for PBXNativeTarget "LiteRTDemo" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

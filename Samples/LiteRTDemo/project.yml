@@ -29,6 +29,11 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+      # Shared with the widget extension: the ActivityAttributes the app uses
+      # to start the showcase's Live Activity.
+      - path: Widgets/GemmaActivityAttributes.swift
+      # App icon (also what the showcase's notification banner displays).
+      - path: Assets.xcassets
       - path: Resources
         buildPhase: resources
     dependencies:
@@ -36,6 +41,8 @@ targets:
         product: LiteRTFoundation
       - package: LiteRTLMFoundationModels
         product: LiteRTLMFoundationModels
+      - target: LiteRTDemoWidgets
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.litertdemo
@@ -55,4 +62,33 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Attach a photo or video to ask Gemma about it."
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "Record audio to ask Gemma about it."
+        # Lets the showcase's start_run_timer tool post a Live Activity — no
+        # entitlement needed, just this key plus the widget extension.
+        INFOPLIST_KEY_NSSupportsLiveActivities: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleDisplayName: LiteRT Demo
+
+  # Renders the showcase's Live Activity (Dynamic Island / Lock Screen).
+  # Plain WidgetKit extension — no entitlements, signed automatically along
+  # with the app.
+  LiteRTDemoWidgets:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.2"
+    sources:
+      - path: Widgets/LiteRTDemoWidgets.swift
+      - path: Widgets/GemmaActivityAttributes.swift
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: LiteRTDemo Widgets
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.litertdemo.widgets
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.9"
+        CODE_SIGN_STYLE: Automatic

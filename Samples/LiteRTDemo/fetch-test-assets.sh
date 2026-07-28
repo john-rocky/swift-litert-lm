@@ -17,6 +17,12 @@ echo "→ apple.png + have_a_wonderful_day.wav (LiteRT-LM testdata, Apache-2.0)"
 curl -fsSL "$BASE/runtime/components/preprocessor/testdata/apple.png" -o "$DIR/apple.png"
 curl -fsSL "$BASE/runtime/testdata/have_a_wonderful_day.wav" -o "$DIR/have_a_wonderful_day.wav"
 
+# Chosen for the showcase vision scene: running shoes on a park path with no
+# visible brand marks (an official partner post shouldn't show trademarks).
+echo "→ showcase.jpg (running shoes, Pexels #1556710, free Pexels license)"
+curl -fsSL "https://images.pexels.com/photos/1556710/pexels-photo-1556710.jpeg?auto=compress&cs=tinysrgb&w=1200" \
+  -o "$DIR/showcase.jpg"
+
 if command -v ffmpeg >/dev/null 2>&1; then
   # A red → green → blue sequence (1.5 s each). Time-varying on purpose: the
   # video self-test can only prove the model saw *multiple frames in order*

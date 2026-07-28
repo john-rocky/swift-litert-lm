@@ -131,6 +131,17 @@ struct FMModeView: View {
           .padding(.vertical, 4)
         }
 
+        Section("Record a demo") {
+          NavigationLink { FMShowcaseView(variant: .offline) } label: {
+            menuRow("record.circle", "One-take showcase · offline",
+              "Airplane-Mode cut — Gemma runs your iPhone")
+          }
+          NavigationLink { FMShowcaseView(variant: .story) } label: {
+            menuRow("figure.run", "One-take showcase · story",
+              "An evening run with Gemma — coach persona, weekly plan")
+          }
+        }
+
         Section("Pick a demo") {
           NavigationLink { TextDemoView(vm: vm) } label: {
             menuRow("text.bubble", "Plain text",
