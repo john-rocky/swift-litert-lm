@@ -124,6 +124,32 @@ env var on launch): `LITERT_G0_TEST` (text+image+audio), `LITERT_MMCHAT`
 (one `.all` chat), `LITERT_BENCH` (decode speed), `LITERT_FM` (FM guided + audio
 + video + tools), `LITERT_DEMO` (auto-runs a couple of chat turns).
 
+### One-take showcase (the demo-video mode)
+
+An auto-playing, screen-recording-oriented tour driven entirely through the
+Foundation Models API: live token streaming with a decode tok/s badge, vision,
+an agent scene where ONE request has Gemma chain four real iOS tools by itself
+(UIDevice battery → a real notification banner → an ActivityKit Live Activity →
+AVSpeechSynthesizer), and guided generation rendered straight into Swift
+Charts. It ends by sending you Home, where Gemma's countdown ticks in the
+Dynamic Island.
+
+To run it: build the app on a device, launch once online (the Gemma 4 E2B
+model downloads, and the notification permission prompt gets out of the way),
+then turn ON Airplane Mode and go **FM API → Record a demo** — two takes are
+available (`offline`, and an "evening run" `story` take). Tap Start; a 3-2-1
+countdown leads in and everything after is automatic. `LITERT_SHOWCASE=1`
+(or `=story`) boots straight into a take.
+
+Recording notes: capturing via QuickTime (File → New Movie Recording, camera +
+microphone = the iPhone) keeps the Dynamic Island visible and records the
+spoken cheer into the file — but iOS paints its canonical status bar (9:41,
+full bars) over captured video, so crop it in the edit if that matters. An
+on-device screen recording shows the real status bar instead, but its
+indicator suppresses the app's own Live Activity in the island. Optional:
+`./fetch-test-assets.sh` pulls a `showcase.jpg` for the story take's vision
+scene (any photo you drop at `Resources/showcase.jpg` wins).
+
 ## What Easy mode owns for you
 
 - **Model download** — a chunked, resumable, single-flight HTTP downloader tuned for the iPhone + Hugging Face dual-CDN path (pooled independent `URLSession`s, per-chunk wall-clock deadlines, `waitsForConnectivity = false`). No silent 0-byte stalls.
