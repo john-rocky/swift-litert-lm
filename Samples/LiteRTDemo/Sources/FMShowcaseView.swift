@@ -605,21 +605,17 @@ struct FMShowcaseView: View {
                   : "Gemma is choosing a tool")
               } else {
                 Text(turn.answer).font(.callout).lineSpacing(2)
+                  .fixedSize(horizontal: false, vertical: true)
+                  .frame(maxWidth: .infinity, alignment: .leading)
               }
             }
-          }
-          if vm.speaking, let spoken = vm.spokenText {
-            HStack(spacing: 10) {
-              speechWave
-              Text("“\(spoken)”").font(.callout.italic()).foregroundStyle(.secondary)
-            }
-            .padding(.top, 2)
           }
           Color.clear.frame(height: 1).id("toolboxBottom")
         }
         // Full-width proposal inside the ScrollView — without it, text rows
         // size to their single-line ideal width and tail-truncate.
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, 10)
       }
       .onChange(of: vm.toolboxTick) { _ in
         withAnimation(.easeOut(duration: 0.2)) {
@@ -866,6 +862,12 @@ struct FMShowcaseView: View {
             .background(Color.orange.opacity(0.14))
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .transition(.scale(scale: 0.85).combined(with: .opacity))
+        }
+        // The waveform lives inside the speak task's own row while the voice
+        // is playing — a floating row at the bottom got clipped off-screen
+        // and jostled with the final answer.
+        if task.name == "speak", vm.speaking {
+          speechWave.padding(.top, 2)
         }
       }
       Spacer(minLength: 0)
@@ -1312,6 +1314,11 @@ final class FMShowcaseVM: ObservableObject {
         await recoverEngine()
       }
       toolboxTick += 1
+      // Scroll again once the multi-line answer has been laid out — a single
+      // scroll fired at set-time measures the old height and leaves the last
+      // lines below the fold.
+      await hold(0.45)
+      toolboxTick += 1
     } else {
       for prompt in script.toolboxPrompts {
         if Task.isCancelled { return }
@@ -1349,11 +1356,13 @@ final class FMShowcaseVM: ObservableObject {
 
   private func speak(_ text: String) {
     spokenText = text
-    speaking = true
+    withAnimation(.spring(duration: 0.35)) { speaking = true }
     try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
     try? AVAudioSession.sharedInstance().setActive(true)
     let delegate = SpeechDelegate { [weak self] in
-      Task { @MainActor in self?.speaking = false }
+      Task { @MainActor in
+        withAnimation(.spring(duration: 0.35)) { self?.speaking = false }
+      }
     }
     speechDelegate = delegate
     synthesizer.delegate = delegate
