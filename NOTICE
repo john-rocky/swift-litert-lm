@@ -9,7 +9,7 @@ Vendored components
 
 Sources/LiteRTLM/
     The thin Swift wrapper around the LiteRT-LM C API. Vendored from
-    google-ai-edge/litert-lm, release v0.13.1, licensed under the Apache
+    google-ai-edge/litert-lm, release v0.15.0, licensed under the Apache
     License, Version 2.0. Original copyright Google LLC. See each file's header
     and the LICENSE file at the repository root.
 
@@ -27,7 +27,7 @@ Sources/LiteRTLM/
 
 CLiteRTLM.xcframework / CLiteRTLM_mac.xcframework
     Prebuilt native runtime binaries downloaded at build time from the official
-    LiteRT-LM GitHub releases (v0.13.1). Copyright Google LLC, Apache-2.0.
+    LiteRT-LM GitHub releases (v0.15.0). Copyright Google LLC, Apache-2.0.
     Not redistributed in this repository.
 
 Upstream project: https://github.com/google-ai-edge/litert-lm
