@@ -158,6 +158,8 @@ public final class LiteRTChat {
   ///   - minimumDeviceRAM: If set, refuse to load on a device with less RAM.
   ///   - enableBenchmark / speculativeDecoding / sampler / prewarm: as the
   ///     catalog initializer.
+  ///   - thinking: Thinking/reasoning configuration for the conversation
+  ///     (v0.15.0+ runtime). `nil` leaves the engine default (off).
   public convenience init(
     modelFileURL url: URL,
     modalities: Modality = .all,
@@ -169,7 +171,9 @@ public final class LiteRTChat {
     enableBenchmark: Bool = false,
     speculativeDecoding: Bool = false,
     sampler: SamplerConfig? = nil,
-    prewarm: Bool = true
+    prewarm: Bool = true,
+    thinking: ThinkingConfig? = nil,
+    backend: Backend = .gpu
   ) async throws {
     if let need = minimumDeviceRAM {
       let ram = Int64(ProcessInfo.processInfo.physicalMemory)
@@ -192,7 +196,7 @@ public final class LiteRTChat {
     let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
     let config = try EngineConfig(
       modelPath: url.path,
-      backend: .gpu,
+      backend: backend,
       visionBackend: modalities.contains(.vision) ? visionBackend : nil,
       audioBackend: modalities.contains(.audio) ? audioBackend : nil,
       maxNumTokens: maxTokens,
@@ -213,7 +217,8 @@ public final class LiteRTChat {
     }
     let conversation = try await engine.createConversation(
       with: ConversationConfig(
-        samplerConfig: activeSampler, visualTokenBudget: conversationVisualTokenBudget))
+        samplerConfig: activeSampler, thinkingConfig: thinking,
+        visualTokenBudget: conversationVisualTokenBudget))
 
     self.init(
       model: nil, modalities: modalities, modelPath: url.path,
