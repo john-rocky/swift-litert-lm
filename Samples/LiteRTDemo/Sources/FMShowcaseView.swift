@@ -547,6 +547,7 @@ struct FMShowcaseView: View {
       Label("Live Apple Maps data — this scene uses the network",
         systemImage: "network")
         .font(.caption.weight(.semibold)).foregroundStyle(.orange)
+        .fixedSize(horizontal: false, vertical: true)
       if let prompt = vm.script.mapPrompt {
         promptBubble(prompt)
       }

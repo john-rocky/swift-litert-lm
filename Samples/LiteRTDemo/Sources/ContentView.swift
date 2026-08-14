@@ -9,6 +9,7 @@ import SwiftUI
 import PhotosUI
 import CoreTransferable
 import UniformTypeIdentifiers
+import AudioToolbox
 import LiteRTFoundation
 
 // MARK: - Models
@@ -677,13 +678,34 @@ final class ChatViewModel: ObservableObject {
           // Hold the security scope open while the engine has the file mapped.
           _ = url.startAccessingSecurityScopedResource()
           securityScopedURL = url
-          loaded = try await LiteRTChat(
-            modelFileURL: url, modalities: multimodal ? .textImage : [],
-            maxTokens: multimodal ? 2048 : 512, enableBenchmark: true, prewarm: false)
+          // State-carrying hybrid exports (gated-delta / mamba) are CPU-only
+          // today: the Metal delegate rejects their INT64 and rank>4 ops and
+          // engine creation fails — and a second Engine created right after the
+          // failed GPU one hangs in the runtime. So remember GPU-rejected files
+          // and go straight to CPU for them on later loads (one app relaunch
+          // after the first failed attempt).
+          let gpuRejectedKey = "litert.gpuRejected." + url.lastPathComponent
+          let cpuFirst = UserDefaults.standard.bool(forKey: gpuRejectedKey)
+          do {
+            loaded = try await LiteRTChat(
+              modelFileURL: url, modalities: multimodal ? .textImage : [],
+              // 4096 even for text-only: the #3087 screen-lock repro wants the
+              // longest prefill this model allows (8192 is rejected by the E4B
+              // .litertlm export: INTERNAL at compiled-model executor line 976).
+              maxTokens: 4096, enableBenchmark: true, prewarm: false,
+              backend: cpuFirst ? .cpu() : .gpu)
+          } catch {
+            UserDefaults.standard.set(true, forKey: gpuRejectedKey)
+            loaded = try await LiteRTChat(
+              modelFileURL: url, modalities: multimodal ? .textImage : [],
+              maxTokens: 4096, enableBenchmark: true, prewarm: false,
+              backend: .cpu())
+          }
         }
         self.chat = loaded
         phase = .ready
         if ProcessInfo.processInfo.environment["LITERT_DEMO"] != nil { await runDemo() }
+        if ProcessInfo.processInfo.environment["LITERT_REPRO"] != nil { await runRepro() }
         return
       } catch {
         if attempt < attempts {
@@ -796,18 +818,30 @@ final class ChatViewModel: ObservableObject {
 
     let start = Date()
     let audio: AudioInput? = audioURL.map { .file($0) }
+    var deltaCount = 0
+    reproLog("send start, promptChars=\(prompt.count)")
     do {
       for try await delta in chat.stream(prompt, image: image, images: frames ?? [], audio: audio) {
+        deltaCount += 1
+        if deltaCount == 1 || deltaCount % 25 == 0 {
+          reproLog(String(format: "delta #%d at +%.2fs", deltaCount, Date().timeIntervalSince(start)))
+        }
         messages[assistantIndex].text += delta
         scrollTick += 1
       }
       if let b = try? chat.lastBenchmark() {
         messages[assistantIndex].stats = String(format: "%.0f tok/s", b.lastDecodeTokensPerSecond)
+        reproLog(String(
+          format: "stream done: %d deltas in %.2fs, prefill %d tok @ %.0f tok/s, decode %.0f tok/s",
+          deltaCount, Date().timeIntervalSince(start), b.lastPrefillTokenCount,
+          b.lastPrefillTokensPerSecond, b.lastDecodeTokensPerSecond))
       } else {
         messages[assistantIndex].stats = String(format: "%.1fs", Date().timeIntervalSince(start))
+        reproLog(String(format: "stream done: %d deltas in %.2fs", deltaCount, Date().timeIntervalSince(start)))
       }
     } catch {
       messages[assistantIndex].text += "\n[error] \(error.localizedDescription)"
+      reproLog("stream error after \(deltaCount) deltas: \(error.localizedDescription)")
     }
     scrollTick += 1
   }
@@ -824,9 +858,91 @@ final class ChatViewModel: ObservableObject {
     return ""
   }
 
+  /// #3087 repro instrumentation: timestamped lines on stderr (unbuffered, so
+  /// they reach `devicectl … launch --console` immediately, unlike stdout).
+  /// Active only under LITERT_REPRO so normal demo runs stay quiet.
+  nonisolated private func reproLog(_ message: String) {
+    guard ProcessInfo.processInfo.environment["LITERT_REPRO"] != nil else { return }
+    let line = String(format: "[REPRO %.3f] %@\n", Date().timeIntervalSince1970, message)
+    FileHandle.standardError.write(Data(line.utf8))
+  }
+
+  /// Auto-repro for LiteRT-LM #3087 (LITERT_REPRO=1): fire one long-prefill
+  /// generation a few seconds after load, so the only manual step left is
+  /// pressing the side button (screen lock) while prefill is in flight.
+  /// Lifecycle observers stamp the lock and the protected-data cutoff into the
+  /// log — #3087's wedge correlates with the latter (~10 s after the lock),
+  /// not with the lock itself.
+  private func runRepro() async {
+    let names: [(Notification.Name, String)] = [
+      (UIApplication.willResignActiveNotification, "willResignActive (lock/app-switch)"),
+      (UIApplication.didBecomeActiveNotification, "didBecomeActive"),
+      (UIApplication.didEnterBackgroundNotification, "didEnterBackground"),
+      (UIApplication.protectedDataWillBecomeUnavailableNotification,
+       "protectedDataWillBecomeUnavailable  <-- #3087 trigger point"),
+      (UIApplication.protectedDataDidBecomeAvailableNotification, "protectedDataDidBecomeAvailable"),
+    ]
+    for (name, label) in names {
+      NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) {
+        [weak self] _ in self?.reproLog(label)
+      }
+    }
+    // Keep executing ~30 s past a screen lock so mode L can start engine work
+    // on an already-locked device, and modes P/D can log past the lock.
+    var bgTask: UIBackgroundTaskIdentifier = .invalid
+    bgTask = UIApplication.shared.beginBackgroundTask(withName: "repro3087") {
+      if bgTask != .invalid { UIApplication.shared.endBackgroundTask(bgTask) }
+    }
+    let mode = ProcessInfo.processInfo.environment["LITERT_REPRO"] ?? "P"
+    reproLog("repro mode \(mode)")
+    switch mode {
+    case "L":
+      // Lock-first: the vibration cue tells the user to lock now; 18 s later
+      // (protected data already gone) a text generation starts while locked.
+      reproCue("model ready — LOCK THE DEVICE NOW, sending in 18 s")
+      try? await Task.sleep(nanoseconds: 18_000_000_000)
+      let filler = String(repeating: "The quick brown fox jumps over the lazy dog. ", count: 350)
+      await send("Summarize the following text in one short sentence. " + filler)
+    case "D":
+      // Long decode: ~2.8k-token prefill (~2.5 s) then verbatim repetition
+      // decodes for ~a minute, so the protected-data cutoff (~10 s after the
+      // user's lock at the cue) reliably lands mid-decode.
+      try? await Task.sleep(nanoseconds: 3_000_000_000)
+      let filler = String(repeating: "The quick brown fox jumps over the lazy dog. ", count: 280)
+      reproCue("sending — LOCK THE DEVICE NOW")
+      await send("Repeat the following text word for word: " + filler)
+    default:  // "P" / "1": lock lands mid-prefill (~3 s window)
+      try? await Task.sleep(nanoseconds: 3_000_000_000)
+      let filler = String(repeating: "The quick brown fox jumps over the lazy dog. ", count: 350)
+      reproCue("sending — LOCK THE DEVICE NOW")
+      await send("Summarize the following text in one short sentence. " + filler)
+    }
+    reproLog("repro turn finished")
+    if bgTask != .invalid { UIApplication.shared.endBackgroundTask(bgTask) }
+  }
+
+  /// Vibrate twice so the user knows "press the side button now" without
+  /// having to watch the screen, and log the cue.
+  private func reproCue(_ message: String) {
+    reproLog("CUE (vibrate): \(message)")
+    AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+    Task {
+      try? await Task.sleep(nanoseconds: 600_000_000)
+      AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+    }
+  }
+
   /// Auto-demo (LITERT_DEMO=1): a couple of turns so a screen recording / GIF
   /// shows a real multimodal chat without manual input.
   private func runDemo() async {
+    // LITERT_DEMO=1 keeps the stock two-turn text+image demo; any other value
+    // is used verbatim as a single text prompt (screen-recording demos on
+    // text-only models want one longer generation and no image turn).
+    let demoEnv = ProcessInfo.processInfo.environment["LITERT_DEMO"] ?? "1"
+    guard demoEnv == "1" else {
+      await send(demoEnv)
+      return
+    }
     await send("In one short sentence, what can you do?")
     try? await Task.sleep(nanoseconds: 600_000_000)
     if let url = Bundle.main.url(forResource: "apple", withExtension: "png"),
