@@ -19,7 +19,7 @@
 
 import PackageDescription
 
-let liteRTLMVersion = "v0.13.1"
+let liteRTLMVersion = "v0.15.0"
 
 let package = Package(
   name: "swift-litert-lm",
@@ -40,13 +40,13 @@ let package = Package(
       name: "CLiteRTLM",
       url:
         "https://github.com/google-ai-edge/LiteRT-LM/releases/download/\(liteRTLMVersion)/CLiteRTLM.xcframework.zip",
-      checksum: "7ff01c42106b754748b5dd3036a4a57161b25ebf523e705bebc1219061852362"
+      checksum: "d6ccf6b54362d894ff71a7580c7e446d36767dab908aecfbb16ffca0fa0bc59b"
     ),
     .binaryTarget(
       name: "CLiteRTLM_mac",
       url:
         "https://github.com/google-ai-edge/LiteRT-LM/releases/download/\(liteRTLMVersion)/CLiteRTLM_mac.xcframework.zip",
-      checksum: "ec9ffe230dc39117a7fc8933b1cc15910454027fee6d3041534ab7cf17313981"
+      checksum: "d23cf189ce8f6bb2556c0a023805e245d1ec862434e501eb60f353488033c1b5"
     ),
 
     // ── Vendored official Swift wrapper (Apache-2.0, see NOTICE) ─────────────

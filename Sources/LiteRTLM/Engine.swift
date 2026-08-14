@@ -183,16 +183,17 @@ public actor Engine {
     defer { litert_lm_session_config_delete(cSessionConfig) }
 
     if let samplerParams = conversationConfig.samplerConfig {
-      var params = LiteRtLmSamplerParams(
-        // Based on the current engine implementation, when SamplerConfig is set, we must switch to
-        // the topP sampling type.
-        type: kLiteRtLmSamplerTypeTopP,
-        top_k: Int32(samplerParams.topK),
-        top_p: samplerParams.topP,
-        temperature: samplerParams.temperature,
-        seed: Int32(samplerParams.seed)
-      )
-      litert_lm_session_config_set_sampler_params(cSessionConfig, &params)
+      guard let cSamplerParams = litert_lm_sampler_params_create(kLiteRtLmSamplerTypeTopP) else {
+        throw LiteRTLMError.engine(.failedToCreateSessionConfig)
+      }
+      defer { litert_lm_sampler_params_delete(cSamplerParams) }
+
+      litert_lm_sampler_params_set_top_k(cSamplerParams, Int32(samplerParams.topK))
+      litert_lm_sampler_params_set_top_p(cSamplerParams, samplerParams.topP)
+      litert_lm_sampler_params_set_temperature(cSamplerParams, samplerParams.temperature)
+      litert_lm_sampler_params_set_seed(cSamplerParams, Int32(samplerParams.seed))
+
+      litert_lm_session_config_set_sampler_params(cSessionConfig, cSamplerParams)
     }
 
     if let loraPath = conversationConfig.loraPath {
@@ -224,8 +225,34 @@ public actor Engine {
     if !messagesJsonStr.isEmpty {
       litert_lm_conversation_config_set_messages(cConversationConfig, messagesJsonStr)
     }
-    litert_lm_conversation_config_set_enable_constrained_decoding(
-      cConversationConfig, ExperimentalFlags.enableConversationConstrainedDecoding)
+    if conversationConfig.enableResponseFormat {
+      var providerType = kLiteRtLmConstraintProviderTypeLlGuidance
+      litert_lm_conversation_config_set_constraint_provider(cConversationConfig, &providerType)
+      litert_lm_conversation_config_set_enable_constrained_decoding(cConversationConfig, true)
+    } else {
+      litert_lm_conversation_config_set_enable_constrained_decoding(
+        cConversationConfig, ExperimentalFlags.enableConversationConstrainedDecoding)
+    }
+    litert_lm_conversation_config_set_stream_tool_calls(
+      cConversationConfig,
+      conversationConfig.enableToolCallStreaming
+        && ExperimentalFlags.enableConversationToolCallStreaming,
+      ExperimentalFlags.conversationToolCallStreamingChannelName)
+    if let filterChannelContentFromKvCache = ExperimentalFlags.filterChannelContentFromKvCache {
+      litert_lm_conversation_config_set_filter_channel_content_from_kv_cache(
+        cConversationConfig, filterChannelContentFromKvCache)
+    }
+
+    if let thinkingConfig = conversationConfig.thinkingConfig {
+      guard let cThinkingConfig = litert_lm_thinking_config_create() else {
+        throw LiteRTLMError.engine(.failedToCreateConversationConfig)
+      }
+      defer { litert_lm_thinking_config_delete(cThinkingConfig) }
+      litert_lm_thinking_config_set_enable_thinking(cThinkingConfig, thinkingConfig.enableThinking)
+      litert_lm_thinking_config_set_thinking_token_budget(
+        cThinkingConfig, Int32(thinkingConfig.thinkingTokenBudget))
+      litert_lm_conversation_config_set_thinking_config(cConversationConfig, cThinkingConfig)
+    }
 
     guard
       let conversationHandle = litert_lm_conversation_create(
@@ -235,12 +262,17 @@ public actor Engine {
     }
 
     return Conversation(
-      handle: conversationHandle, toolManager: toolManager,
+      handle: conversationHandle,
+      toolManager: toolManager,
+      automaticToolCalling: conversationConfig.automaticToolCalling,
+      engine: self,
+      enableResponseFormat: conversationConfig.enableResponseFormat,
       visualTokenBudget: conversationConfig.visualTokenBudget)
   }
 
   deinit {
     if let handle = handle {
+      self.handle = nil
       litert_lm_engine_delete(handle)
     }
   }
