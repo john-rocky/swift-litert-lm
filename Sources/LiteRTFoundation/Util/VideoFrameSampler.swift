@@ -3,7 +3,7 @@
 // Gemma 4 has no native video input, so video understanding is done the way the
 // field does it: sample a handful of frames and feed them as images. This
 // samples evenly across a clip's duration and returns PNG bytes ready to hand to
-// `LiteRTVideoSegment` (FM mode) or `LiteRTChat` (Easy mode).
+// `LiteRTChat` (Easy mode).
 //
 // Memory note: each frame costs visual tokens, so keep `count` small — 4 frames
 // at the default per-image budget already approaches Gemma 4 E2B's context. Tune

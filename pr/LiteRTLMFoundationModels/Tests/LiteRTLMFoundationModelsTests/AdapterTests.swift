@@ -21,6 +21,7 @@
 
 #if canImport(FoundationModels) && compiler(>=6.4)
 
+import CoreGraphics
 import FoundationModels
 import LiteRTLM
 import XCTest
@@ -197,6 +198,43 @@ final class AdapterTests: XCTestCase {
     let vision = LiteRTLanguageModel(
       engineConfig: try EngineConfig(modelPath: Self.modelPath, visionBackend: .gpu))
     XCTAssertTrue(vision.capabilities.contains(.vision))
+  }
+
+  /// An image attachment on a model that did not declare `.vision` is refused
+  /// with `LanguageModelError.unsupportedCapability(.vision)` before the engine
+  /// is touched — never silently dropped. Runs without a model file because the
+  /// check precedes engine creation.
+  func testImageOnTextOnlyModelIsUnsupportedCapability() async throws {
+    let textOnly = LiteRTLanguageModel(
+      engineConfig: try EngineConfig(modelPath: Self.modelPath))
+    let image = try XCTUnwrap(Self.makeImage())
+    let transcript = Transcript(entries: [
+      .prompt(
+        .init(segments: [
+          .text(.init(content: "What is in this picture?")),
+          .attachment(.init(content: .image(.init(image)))),
+        ]))
+    ])
+    let session = LanguageModelSession(model: textOnly, transcript: transcript)
+    do {
+      _ = try await session.respond(to: "Answer briefly.")
+      XCTFail("expected unsupportedCapability")
+    } catch let error as LanguageModelError {
+      guard case .unsupportedCapability(let unsupported) = error else {
+        return XCTFail("unexpected LanguageModelError: \(error)")
+      }
+      XCTAssertEqual(unsupported.capability, .vision)
+    }
+  }
+
+  private static func makeImage() -> CGImage? {
+    let context = CGContext(
+      data: nil, width: 2, height: 2, bitsPerComponent: 8, bytesPerRow: 0,
+      space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+    context?.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+    context?.fill(CGRect(x: 0, y: 0, width: 2, height: 2))
+    return context?.makeImage()
   }
 }
 

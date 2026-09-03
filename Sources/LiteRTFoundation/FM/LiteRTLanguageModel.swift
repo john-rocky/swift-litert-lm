@@ -14,10 +14,10 @@
 // transcript on each turn — correct and simple; an incremental fast-path is a
 // later optimization.
 
-// macOS is excluded: the macOS 26 / 27-beta-5 FoundationModels SDK lacks the
-// iOS-27 surface this file needs (the `LanguageModel` protocol), so canImport
-// alone passes but compilation fails (seen 2026-09-01, litert-mac-verify).
-#if canImport(FoundationModels) && !os(macOS)
+// Gated on the Xcode 27 toolchain (Swift 6.4), not on `canImport` alone: the
+// macOS 26 SDK also ships FoundationModels but without the `LanguageModel`
+// protocol, so on Xcode 26 this file must compile to nothing.
+#if canImport(FoundationModels) && compiler(>=6.4)
 
 import Foundation
 import FoundationModels
@@ -51,12 +51,12 @@ public struct LiteRTLanguageModel: LanguageModel {
     let path = try await LiteRTChat.ensureModel(
       model, storageDirectory: storageDirectory, onProgress: onDownloadProgress)
     self.executorConfiguration = LiteRTExecutor.Configuration(model: model, modelPath: path)
-    // Declared capabilities: guided generation (best-effort schema-in-prompt; see
-    // the executor) and vision (gates image attachments). Audio/video ride the
-    // custom-segment hook and are not capability-gated.
+    // Declared capabilities: guided generation and tool calling (both
+    // prompt-driven; see the executor) and vision (gates image attachments —
+    // the executor rejects an image on a model without it).
     var capabilities: [LanguageModelCapabilities.Capability] = [.guidedGeneration, .toolCalling]
     if model.supportedModalities.contains(.vision) { capabilities.append(.vision) }
-    self.capabilities = LanguageModelCapabilities(capabilities: capabilities)
+    self.capabilities = LanguageModelCapabilities(capabilities)
   }
 
   /// Create the backend from a **local `.litertlm` file** — no catalog, no
@@ -91,7 +91,7 @@ public struct LiteRTLanguageModel: LanguageModel {
       maxTokens: maxTokens)
     var capabilities: [LanguageModelCapabilities.Capability] = [.guidedGeneration, .toolCalling]
     if modalities.contains(.vision) { capabilities.append(.vision) }
-    self.capabilities = LanguageModelCapabilities(capabilities: capabilities)
+    self.capabilities = LanguageModelCapabilities(capabilities)
   }
 
   /// Release every cached LiteRT engine built for FM sessions, freeing their
@@ -168,6 +168,7 @@ public final class LiteRTExecutor: LanguageModelExecutor {
     model: Model,
     streamingInto channel: LanguageModelExecutorGenerationChannel
   ) async throws {
+    try Self.checkCapabilities(of: model, for: request)
     let engine = try await self.engine.ready()
     // Guided generation (G2): if the request carries a schema, encode it to JSON
     // and steer the model toward it via the prompt (schema-in-prompt). Tools: if
@@ -208,7 +209,8 @@ public final class LiteRTExecutor: LanguageModelExecutor {
       // prose/fences), and emit once so FM parses the @Generable type cleanly.
       var full = ""
       for try await chunk in conversation.sendMessageStream(plan.prompt) { full += chunk.toString }
-      let json = Self.extractJSONObject(from: full) ?? full
+      let json = Self.unwrapSchemaEcho(
+        Self.extractJSONObject(from: full) ?? full, schemaJSON: schemaJSON)
       await channel.send(.response(action: .appendText(json, tokenCount: json.count)))
     } else {
       for try await chunk in conversation.sendMessageStream(plan.prompt) {
@@ -218,6 +220,61 @@ public final class LiteRTExecutor: LanguageModelExecutor {
         }
       }
     }
+  }
+
+  /// Refuse, loudly, what the model did not declare: an image attachment on a
+  /// model created without a vision backend is `unsupportedCapability(.vision)`,
+  /// never a silently dropped segment.
+  private static func checkCapabilities(
+    of model: Model, for request: LanguageModelExecutorGenerationRequest
+  ) throws {
+    if !model.capabilities.contains(.vision), hasImageAttachment(request.transcript) {
+      throw LanguageModelError.unsupportedCapability(
+        .init(
+          capability: .vision,
+          debugDescription:
+            "This LiteRT-LM model has no vision backend; create it with a "
+            + "`visionBackend` to send image attachments."))
+    }
+  }
+
+  private static func hasImageAttachment(_ transcript: Transcript) -> Bool {
+    transcript.contains { entry in
+      let segments: [Transcript.Segment]
+      switch entry {
+      case .instructions(let i): segments = i.segments
+      case .prompt(let p): segments = p.segments
+      case .response(let r): segments = r.segments
+      case .toolOutput(let o): segments = o.segments
+      default: return false
+      }
+      return segments.contains { segment in
+        if case .attachment(let a) = segment, case .image = a.content { return true }
+        return false
+      }
+    }
+  }
+
+  /// Undo a "schema echo": asked for an object matching a schema, a small model
+  /// sometimes returns the schema itself with the values filled in under
+  /// `properties` (`{"type": "object", "properties": {"colors": [...]}, ...}`).
+  /// When the object carries none of the schema's top-level keys but its
+  /// `properties` member does, hand FM that member instead.
+  private static func unwrapSchemaEcho(_ json: String, schemaJSON: String?) -> String {
+    guard let schemaJSON,
+      let schemaData = schemaJSON.data(using: .utf8),
+      let schema = (try? JSONSerialization.jsonObject(with: schemaData)) as? [String: Any],
+      let expected = (schema["properties"] as? [String: Any])?.keys, !expected.isEmpty,
+      let data = json.data(using: .utf8),
+      let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+      !expected.contains(where: { obj[$0] != nil }),
+      let inner = obj["properties"] as? [String: Any],
+      expected.contains(where: { inner[$0] != nil }),
+      let out = try? JSONSerialization.data(withJSONObject: inner),
+      let string = String(data: out, encoding: .utf8)
+    else { return json }
+    logger.warning("Guided generation: unwrapped a schema-shaped reply to its `properties`.")
+    return string
   }
 
   /// Extract the first balanced JSON object from model text (strips prose/fences).
@@ -491,8 +548,9 @@ public final class LiteRTExecutor: LanguageModelExecutor {
     return String(data: data, encoding: .utf8) ?? ""
   }
 
-  /// Map FM segments to LiteRT content: text, image attachments, and audio via
-  /// the `LiteRTAudioSegment` custom segment.
+  /// Map FM segments to LiteRT content: text and image attachments. (Audio and
+  /// video have no FM transcript segment since Xcode 27 beta 5 dropped
+  /// `Transcript.CustomSegment`; use Easy mode's `LiteRTChat` for those.)
   private static func contents(of segments: [Transcript.Segment]) -> [Content] {
     var out: [Content] = []
     for segment in segments {
@@ -508,12 +566,6 @@ public final class LiteRTExecutor: LanguageModelExecutor {
             // makes the model's answer look wrong for no visible reason.
             logger.warning("Dropping an image attachment: PNG encoding failed.")
           }
-        }
-      case .custom(let custom):
-        if let audio = custom as? LiteRTAudioSegment {
-          out.append(.audioData(audio.content.data))
-        } else if let video = custom as? LiteRTVideoSegment {
-          out.append(contentsOf: video.content.frames.map { Content.imageData($0) })
         }
       case .structure:
         break  // structured (guided-generation) content — a later phase

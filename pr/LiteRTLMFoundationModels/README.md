@@ -12,8 +12,13 @@ change is the two-line `Hashable, Sendable` conformance on `Backend` /
 
 ## Build requirements
 
-**Xcode 27.0 beta 3 or later.** The FoundationModels API churned between the
-June 27.0 betas and beta 3:
+**Xcode 27.0 beta 5 or later.** The FoundationModels API churned between the
+June 27.0 betas and beta 5:
+
+- Beta 5 removed `Transcript.CustomSegment` (and `Transcript.Segment.custom`),
+  the hook the audio / video segments rode on; those segments are gone with it.
+- Beta 5 made `LanguageModelCapabilities.init` unlabeled (`init(_:)`, was
+  `init(capabilities:)`).
 
 - `GenerationOptions.SamplingMode.Kind` renamed its cases
   (`top` → `randomTopK`, `nucleus` → `randomProbabilityThreshold`) —
@@ -48,8 +53,9 @@ It provides:
 - image attachments (FM's native `AttachmentSegment`)
 - `@Generable` guided generation (schema-in-prompt → JSON extraction)
 - `Tool` calling (emits `ToolCalls` events; FM runs the tool and re-invokes)
-- audio / video understanding via `LiteRTAudioSegment` / `LiteRTVideoSegment`
-  (`Transcript.CustomSegment` — FM has no native audio/video segment)
+- `LanguageModelError.unsupportedCapability(.vision)` for an image attachment
+  on a model built without a vision backend (declared capabilities are enforced,
+  not silently ignored)
 
 ## Design (why it's mergeable)
 
@@ -152,7 +158,7 @@ concerns:
 ## Suggested PR staging
 
 1. **PR #1 (basic):** `respond` / `streamResponse` + image + guided + tools.
-2. **Follow-up:** audio / video custom segments; incremental KV fast-path;
+2. **Follow-up:** incremental KV fast-path;
    optional hard-constrained decoding.
 
 ## Build
