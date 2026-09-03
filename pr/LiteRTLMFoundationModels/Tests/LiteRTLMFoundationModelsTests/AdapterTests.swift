@@ -40,6 +40,13 @@ private struct StubTool: FoundationModels.Tool {
 }
 
 @available(iOS 27.0, macOS 27.0, *)
+@Generable
+private struct PrimaryColors {
+  @Guide(description: "Exactly three additive primary colors")
+  var colors: [String]
+}
+
+@available(iOS 27.0, macOS 27.0, *)
 final class AdapterTests: XCTestCase {
   private static let modelPath = "/tmp/litertlm-tests-nonexistent.litertlm"
 
@@ -225,6 +232,75 @@ final class AdapterTests: XCTestCase {
       }
       XCTAssertEqual(unsupported.capability, .vision)
     }
+  }
+
+  // MARK: - Guided generation prompt
+
+  /// The guided prompt carries a field guide and a placeholder instance, never
+  /// the raw schema. Gemma 4 E2B on macOS (Xcode 27 beta 5, 2026-09-04) echoed
+  /// the schema dump back (`{"colors": {"type": "array", "items": ...}}`) and
+  /// FM failed with "GeneratedContent does not contain an array"; no
+  /// post-processing can turn a schema node into the array it stands for.
+  func testGuidedInstructionsShowASkeletonNotTheSchema() throws {
+    let json = String(
+      decoding: try JSONEncoder().encode(PrimaryColors.generationSchema), as: UTF8.self)
+    let text = LiteRTExecutor.guidedInstructions(fromSchemaJSON: json)
+    XCTAssertTrue(text.contains("{\"colors\": [\"<string>\"]}"), text)
+    XCTAssertTrue(
+      text.contains("- colors (array of string): Exactly three additive primary colors"), text)
+    for token in ["\"type\"", "\"properties\"", "x-order", "additionalProperties", "\"required\""] {
+      XCTAssertFalse(text.contains(token), "schema leaked into the prompt: \(token)\n\(text)")
+    }
+  }
+
+  /// `$ref` into `$defs`, `enum`, optionals (absent from `required`), nested
+  /// objects and arrays of objects, in `x-order` — the shapes the beta 5
+  /// `GenerationSchema` encoder emits for a `@Generable` struct.
+  func testGuidedInstructionsFollowRefsEnumsAndOptionals() {
+    let schema = """
+      {"$defs": {"Address": {"type": "object", "x-order": ["city", "zip"], "required": ["city", "zip"],
+         "properties": {"city": {"type": "string", "description": "City name"}, "zip": {"type": "integer"}}}},
+       "type": "object", "title": "Person",
+       "x-order": ["name", "active", "mood", "address", "nickname", "addresses"],
+       "required": ["name", "active", "mood", "address", "addresses"],
+       "properties": {
+         "name": {"type": "string", "description": "Full name"},
+         "active": {"type": "boolean"},
+         "mood": {"type": "string", "enum": ["happy", "sad"]},
+         "address": {"$ref": "#/$defs/Address"},
+         "nickname": {"type": "string"},
+         "addresses": {"type": "array", "items": {"$ref": "#/$defs/Address"}}}}
+      """
+    let text = LiteRTExecutor.guidedInstructions(fromSchemaJSON: schema)
+    XCTAssertTrue(
+      text.contains(
+        "{\"name\": \"<string>\", \"active\": <true or false>, \"mood\": \"<happy | sad>\", "
+          + "\"address\": {\"city\": \"<string>\", \"zip\": <integer>}, \"nickname\": \"<string>\", "
+          + "\"addresses\": [{\"city\": \"<string>\", \"zip\": <integer>}]}"), text)
+    XCTAssertTrue(text.contains("- name (string): Full name"), text)
+    XCTAssertTrue(text.contains("- mood (one of \"happy\", \"sad\")"), text)
+    XCTAssertTrue(text.contains("- nickname (string, optional)"), text)
+    XCTAssertTrue(text.contains("- address.city (string): City name"), text)
+    XCTAssertTrue(text.contains("- addresses (array of object)"), text)
+    XCTAssertTrue(text.contains("- addresses[].zip (integer)"), text)
+    XCTAssertFalse(text.contains("$ref"), text)
+  }
+
+  /// A reply whose field holds the field's own schema is reported by name;
+  /// a real value, or an object-typed field, is not.
+  func testSchemaEchoIsDetectedByField() throws {
+    let json = String(
+      decoding: try JSONEncoder().encode(PrimaryColors.generationSchema), as: UTF8.self)
+    XCTAssertEqual(
+      LiteRTExecutor.schemaEchoField(
+        in: #"{"colors": {"items": {"type": "string"}, "type": "array"}}"#, schemaJSON: json),
+      "colors")
+    XCTAssertNil(
+      LiteRTExecutor.schemaEchoField(in: #"{"colors": ["red", "green", "blue"]}"#, schemaJSON: json))
+    XCTAssertNil(LiteRTExecutor.schemaEchoField(in: #"{"colors": ["red"]}"#, schemaJSON: nil))
+    let objectField = #"{"type": "object", "properties": {"box": {"type": "object"}}}"#
+    XCTAssertNil(
+      LiteRTExecutor.schemaEchoField(in: #"{"box": {"type": "object"}}"#, schemaJSON: objectField))
   }
 
   private static func makeImage() -> CGImage? {

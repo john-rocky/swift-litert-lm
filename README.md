@@ -271,7 +271,7 @@ a conversational voice assistant — so audio is treated as an understanding tas
 - [x] **G1** — `LiteRTLanguageModel` / `LiteRTExecutor`: `LanguageModelSession(model:)` drives LiteRT-LM end-to-end via the real FM API (`respond` + `streamResponse`), device-verified on iPhone 17 Pro
 - [x] Image through the FM API (`Transcript.AttachmentSegment` → LiteRT vision)
 - [~] **Audio through the FM API** via `LiteRTAudioSegment` (`Transcript.CustomSegment`) — was device-verified on earlier 27.0 betas; **withdrawn** when Xcode 27 beta 5 removed `Transcript.CustomSegment` from the SDK
-- [x] **G2** — guided generation: `@Generable` / `GenerationSchema` over the custom executor — **device-verified** (`respond(generating:)` → structured result; schema-in-prompt + JSON extraction, hard `llguidance` is a follow-up)
+- [x] **G2** — guided generation: `@Generable` / `GenerationSchema` over the custom executor — **device-verified** (`respond(generating:)` → structured result; field guide + skeleton instance in the prompt, JSON extraction, schema echo fails loudly; hard `llguidance` is a follow-up)
 - [~] **Video through the FM API** via `LiteRTVideoSegment` + `VideoFrameSampler` (app-side frames) — same: withdrawn with beta 5 (frames still work through `LiteRTChat`)
 - [x] **Tool calling** (FM `Tool` → LiteRT): the executor emits `ToolCalls` events, FM runs the app's tool, the result feeds back — **device-verified**
 - [x] Chat sample: ChatGPT-style bubbles + photo / **microphone audio** / **video** attachments (device)

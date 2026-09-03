@@ -171,7 +171,7 @@ public final class LiteRTExecutor: LanguageModelExecutor {
     try Self.checkCapabilities(of: model, for: request)
     let engine = try await self.engine.ready()
     // Guided generation (G2): if the request carries a schema, encode it to JSON
-    // and steer the model toward it via the prompt (schema-in-prompt). Tools: if
+    // and steer the model toward it via the prompt (skeleton-in-prompt). Tools: if
     // the request enables tools, describe them in the prompt and detect a
     // tool-call in the output. Both are soft (prompt-driven); hard constrained
     // decoding (llguidance) is a follow-up.
@@ -211,6 +211,9 @@ public final class LiteRTExecutor: LanguageModelExecutor {
       for try await chunk in conversation.sendMessageStream(plan.prompt) { full += chunk.toString }
       let json = Self.unwrapSchemaEcho(
         Self.extractJSONObject(from: full) ?? full, schemaJSON: schemaJSON)
+      if let field = Self.schemaEchoField(in: json, schemaJSON: schemaJSON) {
+        throw LiteRTFMError.schemaEcho(field: field)
+      }
       await channel.send(.response(action: .appendText(json, tokenCount: json.count)))
     } else {
       for try await chunk in conversation.sendMessageStream(plan.prompt) {
@@ -275,6 +278,154 @@ public final class LiteRTExecutor: LanguageModelExecutor {
     else { return json }
     logger.warning("Guided generation: unwrapped a schema-shaped reply to its `properties`.")
     return string
+  }
+
+  /// Guided-generation guidance for the prompt: a field guide (name, type,
+  /// description) plus a skeleton instance with `<...>` placeholders, both built
+  /// from the encoded `GenerationSchema`. The raw schema never enters the
+  /// prompt: a small model imitates whatever shape it sees, and a schema dump
+  /// comes back as the schema (`{"colors": {"type": "array", "items": ...}}`),
+  /// which no post-processing can turn into the array that was asked for.
+  static func guidedInstructions(fromSchemaJSON json: String) -> String {
+    guard let data = json.data(using: .utf8),
+      let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    else {
+      return "Respond with ONLY a JSON object that conforms to this JSON schema. "
+        + "Output valid JSON and nothing else:\n\(json)"
+    }
+    let hint = SchemaHint(definitions: root["$defs"] as? [String: Any] ?? [:])
+    var guide: [String] = []
+    hint.describe(root, path: "", into: &guide, depth: 0)
+    var lines = [
+      "Respond with ONLY a JSON object and nothing else: no prose, no code fence, "
+        + "and do not repeat these instructions."
+    ]
+    if !guide.isEmpty {
+      lines.append("Fields:")
+      lines.append(contentsOf: guide)
+    }
+    lines.append("Use exactly this shape, replacing every <...> placeholder with a real value:")
+    lines.append(hint.skeleton(root, depth: 0))
+    return lines.joined(separator: "\n")
+  }
+
+  /// A nested schema echo that no unwrapping can repair: a top-level field whose
+  /// value is a schema node (`{"type": "array", "items": ...}`) where the schema
+  /// asks for a non-object. Returns the offending field so the caller can fail
+  /// loudly instead of handing FM a value it cannot decode.
+  static func schemaEchoField(in json: String, schemaJSON: String?) -> String? {
+    guard let schemaJSON,
+      let schemaData = schemaJSON.data(using: .utf8),
+      let schema = (try? JSONSerialization.jsonObject(with: schemaData)) as? [String: Any],
+      let properties = schema["properties"] as? [String: Any],
+      let data = json.data(using: .utf8),
+      let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    else { return nil }
+    let hint = SchemaHint(definitions: schema["$defs"] as? [String: Any] ?? [:])
+    for key in properties.keys.sorted() {
+      guard let expected = (properties[key] as? [String: Any]).map(hint.resolve),
+        let expectedType = expected["type"] as? String, expectedType != "object",
+        let value = object[key] as? [String: Any],
+        (value["type"] as? String) == expectedType
+      else { continue }
+      return key
+    }
+    return nil
+  }
+
+  /// Walks an encoded `GenerationSchema` (JSON Schema with `$defs` / `$ref`,
+  /// `x-order`, `enum`, `anyOf`, `required`) to render the field guide and the
+  /// placeholder instance used by `guidedInstructions`.
+  struct SchemaHint {
+    let definitions: [String: Any]
+    private static let maxDepth = 6
+
+    func resolve(_ node: [String: Any]) -> [String: Any] {
+      if let ref = node["$ref"] as? String, let name = ref.split(separator: "/").last,
+        let target = definitions[String(name)] as? [String: Any]
+      {
+        return target
+      }
+      if let anyOf = node["anyOf"] as? [[String: Any]], let first = anyOf.first {
+        return resolve(first)
+      }
+      return node
+    }
+
+    /// Properties in `x-order` (declaration order), then any the order missed.
+    func orderedProperties(_ node: [String: Any]) -> [(String, [String: Any])] {
+      guard let properties = node["properties"] as? [String: Any] else { return [] }
+      let declared = (node["x-order"] as? [String]) ?? []
+      let keys = declared.filter { properties[$0] != nil }
+        + properties.keys.sorted().filter { !declared.contains($0) }
+      return keys.compactMap { key in (properties[key] as? [String: Any]).map { (key, $0) } }
+    }
+
+    func skeleton(_ raw: [String: Any], depth: Int) -> String {
+      guard depth < Self.maxDepth else { return "<value>" }
+      let node = resolve(raw)
+      if let values = node["enum"] as? [Any] {
+        return "\"<" + values.map { "\($0)" }.joined(separator: " | ") + ">\""
+      }
+      switch node["type"] as? String {
+      case "object":
+        let fields = orderedProperties(node).map { key, child in
+          "\"\(key)\": \(skeleton(child, depth: depth + 1))"
+        }
+        return "{" + fields.joined(separator: ", ") + "}"
+      case "array":
+        let item = (node["items"] as? [String: Any]).map { skeleton($0, depth: depth + 1) }
+        return "[\(item ?? "<value>")]"
+      case "string": return "\"<string>\""
+      case "integer": return "<integer>"
+      case "number": return "<number>"
+      case "boolean": return "<true or false>"
+      default: return "<value>"
+      }
+    }
+
+    func describe(_ raw: [String: Any], path: String, into lines: inout [String], depth: Int) {
+      guard depth < Self.maxDepth else { return }
+      let node = resolve(raw)
+      let required = Set(node["required"] as? [String] ?? [])
+      for (key, rawChild) in orderedProperties(node) {
+        let child = resolve(rawChild)
+        let name = path.isEmpty ? key : "\(path).\(key)"
+        var parts = [typeName(child)]
+        if !required.contains(key) { parts.append("optional") }
+        var line = "- \(name) (\(parts.joined(separator: ", ")))"
+        if let description = (rawChild["description"] ?? child["description"]) as? String,
+          !description.isEmpty
+        {
+          line += ": \(description)"
+        }
+        lines.append(line)
+        switch child["type"] as? String {
+        case "object":
+          describe(child, path: name, into: &lines, depth: depth + 1)
+        case "array":
+          if let items = child["items"] as? [String: Any],
+            (resolve(items)["type"] as? String) == "object"
+          {
+            describe(items, path: name + "[]", into: &lines, depth: depth + 1)
+          }
+        default: break
+        }
+      }
+    }
+
+    func typeName(_ node: [String: Any]) -> String {
+      if let values = node["enum"] as? [Any] {
+        return "one of " + values.map { "\"\($0)\"" }.joined(separator: ", ")
+      }
+      switch node["type"] as? String {
+      case "array":
+        let item = (node["items"] as? [String: Any]).map { typeName(resolve($0)) }
+        return "array of \(item ?? "value")"
+      case let other?: return other
+      default: return "value"
+      }
+    }
   }
 
   /// Extract the first balanced JSON object from model text (strips prose/fences).
@@ -342,10 +493,7 @@ public final class LiteRTExecutor: LanguageModelExecutor {
       case .prompt(let p):
         var c = contents(of: p.segments)
         if isTrigger, let schemaJSON, !schemaJSON.isEmpty {
-          c.append(
-            .text(
-              "\n\nRespond with ONLY a JSON object that conforms to this JSON schema. "
-                + "Output valid JSON and nothing else:\n\(schemaJSON)"))
+          c.append(.text("\n\n" + guidedInstructions(fromSchemaJSON: schemaJSON)))
         }
         let message = Message(contents: c, role: .user)
         if isTrigger { trigger = message } else { history.append(message) }
@@ -581,10 +729,16 @@ public final class LiteRTExecutor: LanguageModelExecutor {
 @available(iOS 27.0, macOS 27.0, *)
 public enum LiteRTFMError: Error, LocalizedError {
   case noPrompt
+  /// Guided generation: the model returned the schema of `field` instead of a
+  /// value for it, and the reply cannot be decoded into the requested type.
+  case schemaEcho(field: String)
 
   public var errorDescription: String? {
     switch self {
     case .noPrompt: return "The transcript contains no prompt to respond to."
+    case .schemaEcho(let field):
+      return "Guided generation failed: the model returned the schema for \"\(field)\" "
+        + "instead of a value."
     }
   }
 }

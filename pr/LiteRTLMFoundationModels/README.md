@@ -51,7 +51,7 @@ It provides:
 
 - `respond` / `streamResponse` (text)
 - image attachments (FM's native `AttachmentSegment`)
-- `@Generable` guided generation (schema-in-prompt → JSON extraction)
+- `@Generable` guided generation (field guide + skeleton instance in the prompt → JSON extraction)
 - `Tool` calling (emits `ToolCalls` events; FM runs the tool and re-invokes)
 - `LanguageModelError.unsupportedCapability(.vision)` for an image attachment
   on a model built without a vision backend (declared capabilities are enforced,
@@ -147,9 +147,13 @@ concerns:
 
 ## Honest scope
 
-- Guided generation and tool calling are **prompt-driven** (schema-in-prompt +
-  JSON extraction), not hard constrained decoding. Reliable for simple/medium
-  schemas on small models; a hard `llguidance` path is future work.
+- Guided generation and tool calling are **prompt-driven** (a field guide plus
+  a placeholder instance in the prompt — never the raw schema, which small
+  models echo back — then JSON extraction), not hard constrained decoding. A
+  reply that still echoes a field's schema fails with
+  `LiteRTFMError.schemaEcho(field:)` instead of a vague decode error. Reliable
+  for simple/medium schemas on small models; a hard `llguidance` path is future
+  work.
 - The lean adapter is verified for respond / guided / tools with Gemma 4 E2B on
   **both macOS** (the `fmtest` target) **and iPhone 17 Pro / iOS 27** (the sample
   app's `LITERT_LEAN_FM` self-test). Other models run through the same path but
