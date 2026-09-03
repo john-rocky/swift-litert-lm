@@ -44,11 +44,15 @@ let package = Package(
     ),
     // Unit tests that need no model file on disk, so they run in CI.
     //   swift test
+    // The tests (not the library) also pull the parent package's
+    // `LiteRTFoundation` for its `ModelDownloader`, the transfer behind the
+    // `OdaiModelStore` seam; the store tests drive it against a loopback server.
     .testTarget(
       name: "LiteRTLMFoundationModelsTests",
       dependencies: [
         "LiteRTLMFoundationModels",
         .product(name: "LiteRTLM", package: "swift-litert-lm"),
+        .product(name: "LiteRTFoundation", package: "swift-litert-lm"),
       ]
     ),
   ]
