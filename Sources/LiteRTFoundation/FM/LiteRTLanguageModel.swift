@@ -14,7 +14,10 @@
 // transcript on each turn — correct and simple; an incremental fast-path is a
 // later optimization.
 
-#if canImport(FoundationModels)
+// macOS is excluded: the macOS 26 / 27-beta-5 FoundationModels SDK lacks the
+// iOS-27 surface this file needs (the `LanguageModel` protocol), so canImport
+// alone passes but compilation fails (seen 2026-09-01, litert-mac-verify).
+#if canImport(FoundationModels) && !os(macOS)
 
 import Foundation
 import FoundationModels
