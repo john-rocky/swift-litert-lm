@@ -1,0 +1,109 @@
+{
+  "task": "Run a fine-tuned Hugging Face model in an existing iPhone app (convert with hf-to-litertlm, load with swift-litert-lm)",
+  "model": {
+    "hf_repo": "mlboydaisuke/Qwen3-0.6B-Code-Expert-LiteRT",
+    "file": "model.litertlm",
+    "url": "https://huggingface.co/mlboydaisuke/Qwen3-0.6B-Code-Expert-LiteRT/resolve/main/model.litertlm",
+    "sha256": "b9f8587090b56934e4189a9d969193b5c2fcc120b44ae819692451c92e88f480",
+    "bytes": 613406208,
+    "license": "apache-2.0",
+    "base_model": "Qwen/Qwen3-0.6B",
+    "source_repo": "suayptalha/Qwen3-0.6B-Code-Expert",
+    "source_revision": "02c021dfc15bb3c2d4bd6d26671aba778fc4e840",
+    "source_license_note": "apache-2.0 in the card metadata; the card's LICENSE link points at a file the repo does not contain",
+    "params": 596049920,
+    "variant": "int8 weights (converter default), context 4096 tokens, thought channel <think>/</think>, stop tokens 151645 and 151643",
+    "selection_filters": "<= 1B parameters, not gated, Apache-2.0 or MIT, dense, >= 1,000 downloads in 30 days, someone's fine-tune (not a mirror); 30-day downloads 1,431 on 2026-09-05",
+    "published_by": "mlboydaisuke (own conversion of the fine-tune above); not gated"
+  },
+  "runtime": {
+    "name": "LiteRT-LM via swift-litert-lm (LiteRTChat)",
+    "spm": "https://github.com/john-rocky/swift-litert-lm",
+    "version": "v0.15.0 (xcframeworks pinned by Package.swift)",
+    "accelerator": "gpu",
+    "swift_package_ref": "0.2.0 (09f04f1), tagged 2026-09-05. Tag 0.1.1 and main before 09f04f1 do not compile for iOS with Xcode 26.1.1 or Xcode 27.0 beta 5; the Easy-mode sources used here are unchanged since e82e3b1"
+  },
+  "convert": {
+    "tool": "hf-to-litertlm scripts/convert.py (litert-torch 0.9.3, ai-edge-quantizer 0.8.0, transformers 5.14.1, litert-lm-builder 0.15.0)",
+    "version": "hf-to-litertlm@5ffe9ee",
+    "script": "scripts/convert.py",
+    "command": "python scripts/convert.py suayptalha/Qwen3-0.6B-Code-Expert",
+    "patches": [],
+    "export_seconds": 217,
+    "gate": {
+      "script": "scripts/verify_quality.py",
+      "score": 7,
+      "of": 8,
+      "min_correct": 6,
+      "degenerate": false,
+      "missed": "rhyme: 'Roses are red, violets are ___' answered 'violet'",
+      "median_decode_tok_s": 138.3,
+      "backend": "gpu (Mac Studio M4 Max, LiteRTChat default sampler, 3200-token budget)"
+    },
+    "template_lint": "warning only: template uses split/strip/lstrip/rstrip, rendered by current runtimes"
+  },
+  "integrate": {
+    "guide": "docs/recipe-hf-finetune-to-iphone.md",
+    "files": [],
+    "deps": [
+      ".package(url: \"https://github.com/john-rocky/swift-litert-lm\", from: \"0.2.0\")",
+      ".product(name: \"LiteRTFoundation\", package: \"swift-litert-lm\")"
+    ],
+    "min_os": "iOS 16 (Easy mode); macOS 13",
+    "swift": "let chat = try await LiteRTChat(huggingFaceRepo: \"mlboydaisuke/Qwen3-0.6B-Code-Expert-LiteRT\", fileName: \"model.litertlm\", modalities: []); for try await delta in chat.stream(prompt) { ... }",
+    "model_delivery": "public, ungated Hugging Face repo; LiteRTChat(huggingFaceRepo:fileName:) downloads the file once into Application Support/LiteRTModels (excluded from iCloud backup, chunked, resumable, no auth token). Development: devicectl copy into the app's Documents and LiteRTChat(modelFileURL:modalities: []).",
+    "stop": "chat.cancel(): model idle within 0.5 s (GPU and CPU); the stream throws CANCELLED and the conversation cannot take another message. Cancelling only the reading Task does not stop the model (it decoded the full 2,017-token essay after the reader left at 10 deltas).",
+    "release": "drop the last reference (chat = nil): Engine and Conversation free their native handles in deinit. GPU footprint 1,376 -> 226 MB two seconds later; CPU 1,105 -> 1,052 MB; fresh load 0.1 s.",
+    "second_turn": "fails on the same conversation with failedToStartStream(status: 13), INTERNAL 'rendered template string does not start with the previous', thinking off and on, GPU and CPU: google-ai-edge/LiteRT-LM#3443 (Qwen3 template). Workaround: one LiteRTChat per turn, history carried in the prompt."
+  },
+  "verify": {
+    "command": "python3 -m venv lt && lt/bin/pip install \"litert-lm==0.17.0\" && lt/bin/litert-lm run --from-huggingface-repo mlboydaisuke/Qwen3-0.6B-Code-Expert-LiteRT model.litertlm --prompt \"What is 17 + 25? Answer briefly.\" --thinking false --temperature 0 --top-k 1",
+    "expected": "17 + 25 = 42 (litert-lm 0.17.0 on the local file: 1.1 s wall; 0.16.0: 1.0 s; Mac Studio M4 Max, 2026-09-05; repo form 67 s wall including the 613 MB download; one earlier attempt stalled in the download and was killed after 10 min, the retry went through). With thinking left on and greedy sampling the same prompt looped on '17 + 25.' inside the thought channel for 128 s with no answer; with the CLI's default sampler and thinking on (0.17.0) it thought one paragraph and answered 17 + 25 = 42.",
+    "device_command": "PENDING: Samples/LiteRTDemo local-model self-test (devicectl copy into Documents, launch with LITERT_LOCAL_TEST=1, read the LOCAL: lines); the sample does not build on 2026-09-05 (references LiteRTAudioSegment/LiteRTVideoSegment removed for Xcode 27 beta 5)"
+  },
+  "devices": [
+    {
+      "name": "Mac Studio (Apple M4 Max, 128 GB)",
+      "os": "macOS 27.0 (26A5416b)",
+      "date": "2026-09-05",
+      "accelerator": "gpu",
+      "runtime_version": "LiteRT-LM v0.15.0 via swift-litert-lm LiteRTChat (0.2.0 = 09f04f1, Xcode 27.0 beta 5 27A5237l)",
+      "tok_per_s": 142.7,
+      "prefill_tok_per_s": 469.2,
+      "first_turn_s": 2.2,
+      "footprint_mb": 1411,
+      "output": "17 + 25 = 42",
+      "conditions": "prewarm false, maxTokens 2048, default sampler (top-k 40, top-p 0.95, temperature 0.8), fresh load with a warm compile cache; prebuilt verifier on the same file: 141.2 decode / 472.2 prefill tok/s",
+      "source": "this recipe's Swift lifecycle test, run on 2026-09-05"
+    },
+    {
+      "name": "Mac Studio (Apple M4 Max, 128 GB)",
+      "os": "macOS 27.0 (26A5416b)",
+      "date": "2026-09-05",
+      "accelerator": "cpu",
+      "runtime_version": "LiteRT-LM v0.15.0 via swift-litert-lm LiteRTChat (0.2.0 = 09f04f1)",
+      "tok_per_s": 33.3,
+      "prefill_tok_per_s": 95.2,
+      "first_turn_s": 11.4,
+      "footprint_mb": 1107,
+      "output": "17 + 25 = 42",
+      "conditions": "same test as the GPU row with backend: .cpu()",
+      "source": "this recipe's Swift lifecycle test, run on 2026-09-05"
+    }
+  ],
+  "unverified": [
+    "any iPhone: the iPhone 17 Pro row is added when the device is available; the sample app must build first",
+    "iOS Simulator: the runtime xcframework ships an ios-arm64-simulator slice and the README says the Simulator falls back to CPU; nothing was run there",
+    "runtime binaries other than v0.15.0 in the Swift package; Xcode versions other than 26.1.1 and 27.0 beta 5",
+    "multi-turn through the litert-lm CLI: two prompts on stdin were answered in one run and not in another; not established",
+    "convert.py --int4, LoRA adapter repos (merge path), and every fine-tune other than this one",
+    "first-generation cost on a fresh engine on an iPhone (Mac: 2.2 s GPU, 11.4 s CPU with prewarm false)"
+  ],
+  "provenance": {
+    "converted_by": "john-rocky",
+    "recipe_origin": "https://github.com/john-rocky/swift-litert-lm/blob/main/docs/recipe-hf-finetune-to-iphone.md",
+    "measurement_report": "https://github.com/john-rocky/swift-litert-lm/blob/main/docs/recipe-hf-finetune-to-iphone.md#7-verified--unverified",
+    "commit": "john-rocky/swift-litert-lm@09f04f1 (tag 0.2.0); john-rocky/hf-to-litertlm@5ffe9ee",
+    "maintainer": "https://github.com/john-rocky/swift-litert-lm/issues"
+  }
+}

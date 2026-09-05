@@ -198,6 +198,8 @@ let session = LanguageModelSession(model: model)
 The sample app has a **model picker** in the header that exercises all three —
 the bundled Gemma 4 E2B, any Hugging Face repo, or a local file.
 
+**Recipe: a fine-tuned Hugging Face model → your iPhone app** — [docs/recipe-hf-finetune-to-iphone.md](docs/recipe-hf-finetune-to-iphone.md): convert it with hf-to-litertlm, add it to an existing app, stop and release, verify (Mac-verified 2026-09-05; iPhone row pending).
+
 **Other options, and when they fit:**
 
 | Option | When to use |
