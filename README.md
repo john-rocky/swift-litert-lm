@@ -1,6 +1,31 @@
 # swift-litert-lm
 
-**Run Gemma 4 (and other LiteRT-LM models) on iPhone — the easy way, and as an Apple Foundation Models backend.**
+**Gemma 4 on iPhone as a Swift package** — Metal GPU, text + image + audio, in-app model download. Also a backend for Apple's Foundation Models API (iOS 27).
+
+One dependency:
+
+```swift
+.package(url: "https://github.com/john-rocky/swift-litert-lm", from: "0.2.0")   // product: LiteRTFoundation
+```
+
+Five lines to a streaming Gemma 4 chat:
+
+```swift
+import LiteRTFoundation
+
+let chat = try await LiteRTChat(.gemma4_E2B)   // first run downloads ~2.6 GB, later runs reuse it
+for try await token in chat.stream("Explain quantum computing in one sentence.") {
+    print(token, terminator: "")
+}
+```
+
+Check that it resolves and builds on your Mac before you open Xcode:
+
+```bash
+git clone https://github.com/john-rocky/swift-litert-lm && cd swift-litert-lm && swift build
+```
+
+Measured on an iPhone 17 Pro: ~50 tok/s decode, ~530 MB text footprint ([full table](#verified-on-device-g0)).
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/91567f7d-6916-4cca-a399-3c385c82ab51" alt="LiteRTDemo on iPhone 17 Pro" width="280">
