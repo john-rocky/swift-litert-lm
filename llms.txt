@@ -1,0 +1,39 @@
+# swift-litert-lm
+
+> Gemma 4 on iPhone as a Swift package: one dependency line, five lines to a streaming chat on the Metal GPU, in-app model download, text + image + audio. Also a backend for Apple's Foundation Models API (iOS 27). Wraps Google's LiteRT-LM runtime. Community package, not affiliated with Google or Apple.
+
+Pin `from: "0.2.0"`, product `LiteRTFoundation`. Measured on an iPhone 17 Pro (iOS 27): about 50 tok/s decode, about 530 MB text footprint.
+
+```swift
+import LiteRTFoundation
+
+let chat = try await LiteRTChat(.gemma4_E2B)   // first run downloads ~2.6 GB, later runs reuse it
+for try await token in chat.stream("Explain quantum computing in one sentence.") {
+    print(token, terminator: "")
+}
+```
+
+## Start here
+
+- [README](https://raw.githubusercontent.com/john-rocky/swift-litert-lm/main/README.md): install, Easy mode (`LiteRTChat`), FM mode (`LiteRTLanguageModel`), shipping the model, the verified device table.
+- [AGENTS.md](https://raw.githubusercontent.com/john-rocky/swift-litert-lm/main/AGENTS.md): for coding agents. Task → API → file, and the rules that fail on a real device.
+- [Recipe: a fine-tuned Hugging Face model on iPhone](https://raw.githubusercontent.com/john-rocky/swift-litert-lm/main/docs/recipe-hf-finetune-to-iphone.md): hf-to-litertlm → `LiteRTChat`, measured 2026-09-05. Machine-readable: [recipe.json](https://raw.githubusercontent.com/john-rocky/swift-litert-lm/main/docs/recipe.json).
+- [Package.swift](https://raw.githubusercontent.com/john-rocky/swift-litert-lm/main/Package.swift): products `LiteRTFoundation` and `LiteRTLM`; the runtime xcframeworks are pinned to a LiteRT-LM release.
+
+## API (Sources/LiteRTFoundation)
+
+- [Easy/LiteRTChat.swift](https://raw.githubusercontent.com/john-rocky/swift-litert-lm/main/Sources/LiteRTFoundation/Easy/LiteRTChat.swift): `LiteRTChat(_:modalities:)`, `stream(_:)`, `respond(_:image:)`, `respond(_:audio:)`, `LiteRTChat(huggingFaceRepo:fileName:)`, `LiteRTChat(modelFileURL:)`.
+- [Easy/ModelCatalog.swift](https://raw.githubusercontent.com/john-rocky/swift-litert-lm/main/Sources/LiteRTFoundation/Easy/ModelCatalog.swift): the `LiteRTModel` catalog (`.gemma4_E2B`) and `Modality` (`.textImage`, `.all`).
+- [FM/LiteRTLanguageModel.swift](https://raw.githubusercontent.com/john-rocky/swift-litert-lm/main/Sources/LiteRTFoundation/FM/LiteRTLanguageModel.swift): `LiteRTLanguageModel`, Apple's `LanguageModel` protocol over LiteRT; use with `LanguageModelSession(model:)`.
+- [Download/ModelDownloader.swift](https://raw.githubusercontent.com/john-rocky/swift-litert-lm/main/Sources/LiteRTFoundation/Download/ModelDownloader.swift): chunked, resumable, single-flight download into Application Support.
+
+## Examples
+
+- [Samples/LiteRTDemo](https://github.com/john-rocky/swift-litert-lm/tree/main/Samples/LiteRTDemo): SwiftUI chat with photo, microphone and video attachments, an FM API screen (guided generation and tool calling), and a model picker (catalog, Hugging Face repo, local file).
+
+## Related
+
+- [hf-to-litertlm](https://github.com/john-rocky/hf-to-litertlm): convert a Hugging Face LLM or VLM to `.litertlm`.
+- [hfmodels-android](https://github.com/john-rocky/hfmodels-android): the same idea on Android.
+- [on-device-recipes](https://john-rocky.github.io/on-device-recipes/): device-verified recipes across runtimes.
+- [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM): the upstream runtime.
