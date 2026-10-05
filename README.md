@@ -170,6 +170,22 @@ indicator suppresses the app's own Live Activity in the island. Optional:
 `./fetch-test-assets.sh` pulls a `showcase.jpg` for the story take's vision
 scene (any photo you drop at `Resources/showcase.jpg` wins).
 
+## Projects using swift-litert-lm
+
+- [VivaDicta](https://github.com/n0an/VivaDicta) — an iOS and watchOS
+  speech-to-text app. Version 3.12.0 runs Gemma 4 E2B and E4B on-device through
+  `LiteRTChat`, from a fork of this package
+  ([source](https://github.com/n0an/VivaDicta/blob/v3.12.0/Modules/LocalLLM/Sources/LocalLLM/LiteRTModelManager.swift)).
+- [EyePal](https://github.com/yyyug/EyePal) — an iOS assistive app for people
+  with visual impairments. It runs Gemma on-device through this package's
+  `Engine` and `Conversation` to caption images and answer questions about them
+  ([source](https://github.com/yyyug/EyePal/blob/97dec77adafbfe629c6abfaa60e490336a5a9fc1/EyePal/Services/Gemma/GemmaTextRecognitionService.swift)).
+
+Separately, the Foundation Models adapter, `LiteRTLanguageModel`, was ported
+into Google's [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM) under
+`swift/apple_fm/`
+([source](https://github.com/google-ai-edge/LiteRT-LM/blob/d17a52fd5c2b4ce1280959309af175caebaac2c3/swift/apple_fm/LiteRTLanguageModel.swift)).
+
 ## What Easy mode owns for you
 
 - **Model download** — a chunked, resumable, single-flight HTTP downloader tuned for the iPhone + Hugging Face dual-CDN path (pooled independent `URLSession`s, per-chunk wall-clock deadlines, `waitsForConnectivity = false`). No silent 0-byte stalls.
