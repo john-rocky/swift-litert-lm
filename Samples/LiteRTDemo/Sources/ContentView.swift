@@ -136,7 +136,7 @@ struct ContentView: View {
   private var messageList: some View {
     ScrollViewReader { proxy in
       ScrollView {
-        LazyVStack(spacing: 12) {
+        VStack(spacing: 12) {
           if case .error(let message) = vm.phase {
             Text(message).font(.callout).foregroundStyle(.red).padding()
           }
