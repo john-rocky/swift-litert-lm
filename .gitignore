@@ -37,3 +37,6 @@ Samples/LiteRTDemo/Resources/*
 
 # macOS
 .DS_Store
+
+# Local maintenance notes
+lane/
