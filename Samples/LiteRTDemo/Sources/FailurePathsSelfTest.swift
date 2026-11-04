@@ -109,7 +109,7 @@ enum FailurePathsSelfTest {
       },
       FailurePath(id: "c", name: "not enough RAM") {
         let ram = Int64(ProcessInfo.processInfo.physicalMemory)
-        _ = try await LiteRTChat(modelFileURL: model, minimumDeviceRAM: ram + 1)
+        _ = try await LiteRTChat(modelFileURL: model, minimumDeviceRAM: ram + (1 << 30))
         return "returned a chat"
       },
       FailurePath(id: "d", name: "input longer than maxTokens") {
