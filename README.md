@@ -273,8 +273,8 @@ attachments. The iPhone run is pending.
 
 **After a turn throws, make a new chat.** Once a turn has thrown, or after `cancel()`, later turns
 on that `LiteRTChat` throw too: three more turns threw in each case. Release it, then create a new
-`LiteRTChat`: each one holds its own engine. Measured on a Mac with LiteRT-LM v0.15.0 and v0.19.0;
-not yet measured on an iPhone.
+`LiteRTChat`: each one holds its own engine. The sample app does this in `send()`. Measured on a Mac
+with LiteRT-LM v0.15.0 and v0.19.0; not yet measured on an iPhone.
 
 **A string-only chat template can lose the prompt, with no error.** On v0.19.0,
 `qwen3_0_6b_mixed_int4.litertlm` from

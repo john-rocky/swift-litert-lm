@@ -639,7 +639,9 @@ final class ChatViewModel: ObservableObject {
     await load(newSource)
   }
 
-  private func load(_ src: ModelSource) async {
+  /// `runScripts` is false for the reload after a failed turn, so a scripted run
+  /// (`LITERT_DEMO` and the like) does not start over each time one of its turns throws.
+  private func load(_ src: ModelSource, runScripts: Bool = true) async {
     guard chat == nil else { return }
     phase = .loading(0)
     let onProgress: @Sendable (ModelDownloader.Progress) -> Void = { [weak self] p in
@@ -704,9 +706,7 @@ final class ChatViewModel: ObservableObject {
         }
         self.chat = loaded
         phase = .ready
-        if ProcessInfo.processInfo.environment["LITERT_DEMO"] != nil { await runDemo() }
-        if ProcessInfo.processInfo.environment["LITERT_REPRO"] != nil { await runRepro() }
-        return
+        break
       } catch {
         if attempt < attempts {
           phase = .loading(0)
@@ -715,6 +715,25 @@ final class ChatViewModel: ObservableObject {
           phase = .error(error.localizedDescription)
         }
       }
+    }
+    // Outside the scope of `loaded`: a scripted turn that throws restarts the chat,
+    // and that local would keep the old engine resident while the new one loads.
+    guard isReady, runScripts else { return }
+    let environment = ProcessInfo.processInfo.environment
+    if environment["LITERT_DEMO"] != nil { await runDemo() }
+    if environment["LITERT_REPRO"] != nil { await runRepro() }
+    if environment["LITERT_UI_CHECK"] != nil { await runUICheck() }
+  }
+
+  /// A `LiteRTChat` whose turn threw keeps throwing on later turns: release it and
+  /// load a new one. The messages stay on screen; the new chat has no history.
+  private func restartChat(noteIn index: Int) async {
+    releaseEngine()
+    // Give the native engine a moment to free GPU memory before the next one loads.
+    try? await Task.sleep(nanoseconds: 800_000_000)
+    await load(source, runScripts: false)
+    if isReady {
+      messages[index].text += "\nThe chat was restarted. The model no longer remembers earlier messages."
     }
   }
 
@@ -792,7 +811,7 @@ final class ChatViewModel: ObservableObject {
 
   func send(_ text: String) async {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard let chat, !isGenerating else { return }
+    guard chat != nil, !isGenerating else { return }
 
     let image = attachedImage
     let frames = attachedVideoFrames
@@ -820,7 +839,11 @@ final class ChatViewModel: ObservableObject {
     let audio: AudioInput? = audioURL.map { .file($0) }
     var deltaCount = 0
     reproLog("send start, promptChars=\(prompt.count)")
+    var turnThrew = false
     do {
+      // Bound inside this block: the restart below needs the last reference gone,
+      // or the old engine stays resident while the new one loads.
+      guard let chat else { return }
       for try await delta in chat.stream(prompt, image: image, images: frames ?? [], audio: audio) {
         deltaCount += 1
         if deltaCount == 1 || deltaCount % 25 == 0 {
@@ -842,8 +865,13 @@ final class ChatViewModel: ObservableObject {
     } catch {
       messages[assistantIndex].text += "\n[error] \(error.localizedDescription)"
       reproLog("stream error after \(deltaCount) deltas: \(error.localizedDescription)")
+      turnThrew = true
     }
     scrollTick += 1
+    if turnThrew {
+      await restartChat(noteIn: assistantIndex)
+      scrollTick += 1
+    }
   }
 
   private func defaultPrompt(image: Data?, frames: [Data]?, audio: URL?) -> String {
@@ -950,5 +978,26 @@ final class ChatViewModel: ObservableObject {
       attachedImage = data
     }
     await send("What is in this photo? Answer in one short sentence.")
+  }
+
+  /// UI check (LITERT_UI_CHECK=1): on the normal chat screen, an input over the
+  /// model's token budget and then a short turn. Each reply also goes to stdout, to
+  /// compare with what the screen shows.
+  private func runUICheck() async {
+    let sentence = "The quick brown fox jumps over the lazy dog near the quiet river bank. "
+    let replies = [
+      await uiCheckTurn(String(repeating: sentence, count: 400), label: "long input"),
+      await uiCheckTurn("Reply with one short sentence about the sea.", label: "short turn"),
+    ]
+    let restarted = replies[0].contains("[error] ") && replies[0].contains("The chat was restarted.")
+    let answered = !replies[1].isEmpty && !replies[1].contains("[error]")
+    print("### UI-CHECK: \(restarted && answered ? "PASS" : "FAIL")")
+  }
+
+  private func uiCheckTurn(_ text: String, label: String) async -> String {
+    await send(text)
+    let reply = messages.last?.text ?? ""
+    print("UI: \(label): \(reply)")
+    return reply
   }
 }
