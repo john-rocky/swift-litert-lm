@@ -9,16 +9,14 @@ Vendored components
 
 Sources/LiteRTLM/
     The thin Swift wrapper around the LiteRT-LM C API. Vendored from
-    google-ai-edge/litert-lm, release v0.13.1, licensed under the Apache
+    google-ai-edge/litert-lm, release v0.19.0, licensed under the Apache
     License, Version 2.0. Original copyright Google LLC. See each file's header
     and the LICENSE file at the repository root.
 
-    Vendored verbatim except for one local patch, proposed upstream:
-    Config.swift declares `Backend` and `EngineConfig` as `Hashable, Sendable`
-    (they were `Equatable` and unconstrained). Apple's `LanguageModelExecutor`
-    requires `associatedtype Configuration: Hashable & Sendable`, so the
-    Foundation Models backend cannot use `EngineConfig` as its configuration
-    without this. No behaviour changes; the conformances are synthesized.
+    Vendored verbatim except for one local patch: Config.swift adds
+    `EngineConfig.maxNumImages`, and Engine.swift passes it to the C API's
+    `litert_lm_engine_settings_set_max_num_images`. The tests, BUILD, Info.plist
+    and `apple_fm` from upstream's swift/ are not vendored.
 
     We vendor these files (rather than depending on the upstream SwiftPM
     package) so the package resolves without git-lfs: the upstream repository
@@ -27,7 +25,7 @@ Sources/LiteRTLM/
 
 CLiteRTLM.xcframework / CLiteRTLM_mac.xcframework
     Prebuilt native runtime binaries downloaded at build time from the official
-    LiteRT-LM GitHub releases (v0.13.1). Copyright Google LLC, Apache-2.0.
+    LiteRT-LM GitHub releases (v0.19.0). Copyright Google LLC, Apache-2.0.
     Not redistributed in this repository.
 
 Upstream project: https://github.com/google-ai-edge/litert-lm

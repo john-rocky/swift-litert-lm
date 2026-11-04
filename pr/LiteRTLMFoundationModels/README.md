@@ -6,9 +6,8 @@ of `swift-litert-lm` so it can be proposed upstream to
 API. It compiles against **only the LiteRT-LM core Swift wrapper** (`LiteRTLM` —
 `Engine` / `Conversation` / `Message` / …) plus Apple's `FoundationModels`.
 
-`swift build` here proves exactly that: no app dependencies, and the only core
-change is the two-line `Hashable, Sendable` conformance on `Backend` /
-`EngineConfig` described under Design.
+`swift build` here proves exactly that: no app dependencies and no core change.
+Upstream's `Backend` and `EngineConfig` are already `Hashable, Sendable`.
 
 ## Build requirements
 
@@ -59,13 +58,11 @@ It provides:
 
 ## Design (why it's mergeable)
 
-- **Core-only deps, one two-line core change.** Uses just the existing public
+- **Core-only deps, no core change.** Uses just the existing public
   `Engine` / `EngineConfig` / `Conversation` / `Message` / `SamplerConfig` /
-  `Backend` / `ExperimentalFlags` / `Tool` API. The single change required of the
-  core is that `Backend` and `EngineConfig` become `Hashable, Sendable` — Apple's
-  `LanguageModelExecutor` declares `associatedtype Configuration: Hashable & Sendable`,
-  so the adapter cannot carry an `EngineConfig` without it. Both conformances are
-  synthesized; no behaviour changes.
+  `Backend` / `ExperimentalFlags` / `Tool` API. Apple's `LanguageModelExecutor`
+  declares `associatedtype Configuration: Hashable & Sendable`, so the adapter
+  needs `Backend` and `EngineConfig` to conform; upstream's both do.
 - **Zero impact on other platforms.** Everything is wrapped in
   `#if canImport(FoundationModels)` + `@available(iOS 27.0, macOS 27.0, *)`, so on
   Linux / Android / Windows it compiles to nothing. For the actual PR these files

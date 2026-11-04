@@ -11,11 +11,16 @@ Not yet run on an iPhone (row pending). The converted bundle is published as
 so the verify command in section 6 needs no conversion. Everything here was run on 2026-09-05; the
 same facts in machine-readable form are in [`recipe.json`](recipe.json).
 
+This package's `main` has since moved to LiteRT-LM v0.19.0. The measurements below are from v0.15.0
+unless a sentence says otherwise. The published file's chat template changed on 2026-09-21, so
+`resolve/main` now serves sha256 `7a4ec53564ef677f64dcb2de88017fccd1c00aa610495b24c089493278720fe6`,
+not the `b9f8587…` recorded below.
+
 Two limits, up front:
 
 - **One turn per `LiteRTChat` for Qwen3-template models today.** A second message on the same
-  conversation fails on the runtime this package pins (v0.15.0); upstream issue
-  [google-ai-edge/LiteRT-LM#3443](https://github.com/google-ai-edge/LiteRT-LM/issues/3443). Section 5
+  conversation fails on LiteRT-LM v0.15.0 (tag `0.2.0` of this package) and on v0.19.0 (`main`); upstream
+  issue [google-ai-edge/LiteRT-LM#3443](https://github.com/google-ai-edge/LiteRT-LM/issues/3443). Section 5
   has the measurement and the workaround (a new `LiteRTChat` per turn).
 - **Use tag `0.2.0` or later of this package.** Tag `0.1.1`, and `main` before 09f04f1, fail to
   compile for iOS with Xcode 26.1.1 and with Xcode 27.0 beta 5. `0.2.0` (2026-09-05) compiles with
@@ -114,7 +119,7 @@ Build status on 2026-09-05: tag `0.2.0` (09f04f1) compiles for iOS with Xcode 26
 Xcode 27.0 beta 5. Tag `0.1.1` and the `main` history before 09f04f1 do not: they use Foundation
 Models API that beta 5 removed and the iOS 26 SDK never had. The Easy-mode sources this recipe uses
 (`LiteRTChat`, the downloader, the vendored runtime wrapper) are unchanged between e82e3b1 and
-0.2.0. The runtime binaries are the LiteRT-LM v0.15.0 xcframeworks the package pins. Minimum OS:
+0.2.0. The runtime binaries are the LiteRT-LM v0.15.0 xcframeworks tag `0.2.0` pins. Minimum OS:
 iOS 16.
 
 **Swift.**
@@ -197,7 +202,14 @@ while that turn is the last message, and without the pair once the next message 
 engine requires the new render to extend the old one byte for byte. Upstream issue
 [#3443](https://github.com/google-ai-edge/LiteRT-LM/issues/3443) (open, filed 2026-09-01 against
 v0.16.0 with the litert-community Qwen3-0.6B bundle) names the embedded Qwen3 chat template as the
-cause. Any Qwen3-template bundle is affected; the converter embeds the repo's template verbatim.
+cause. The converter embeds the repo's template verbatim, so a Qwen3 fine-tune carries it.
+
+Measured again on 2026-11-05 on a Mac, on LiteRT-LM v0.19.0: the second message on the published
+bundle (its 2026-09-21 revision, sha256 `7a4ec53564ef677f64dcb2de88017fccd1c00aa610495b24c089493278720fe6`,
+updated template) still fails with status 13 and the same message, thinking off and on. In the error,
+the old text keeps the model's `<think>` block and the new text does not. `Qwen3-0.6B.litertlm` and
+`Qwen3-0.6B_dynamic_wi4b32_afp32.litertlm` from litert-community/Qwen3-0.6B embed a different template,
+and they answered a second message correctly on v0.19.0.
 
 Workaround: one `LiteRTChat` per turn. Release the previous one, create a new one from the same
 file (0.1 s on the Mac with a warm compile cache; not measured on an iPhone), and put the history
@@ -270,8 +282,8 @@ Unverified:
   build first (section 6).
 - iOS Simulator. The runtime xcframework ships an `ios-arm64-simulator` slice and the README says
   the Simulator falls back to CPU; nothing was run there.
-- Runtime binaries other than v0.15.0 in the Swift package, and Xcode versions other than 26.1.1
-  and 27.0 beta 5.
+- Runtime binaries other than v0.15.0 in the Swift package (except the v0.19.0 second-turn check in
+  section 5), and Xcode versions other than 26.1.1 and 27.0 beta 5.
 - Multi-turn through the `litert-lm` CLI: two prompts on stdin were answered in one run and not in
   another; not established either way.
 - `convert.py --int4`, LoRA adapter repos (the merge path), and every fine-tune other than this one.
