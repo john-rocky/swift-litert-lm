@@ -8,7 +8,7 @@ One dependency:
 .package(url: "https://github.com/john-rocky/swift-litert-lm", from: "0.2.0")   // product: LiteRTFoundation
 ```
 
-`from: "0.2.0"` resolves to tag 0.2.0, which runs LiteRT-LM v0.15.0. `main` runs LiteRT-LM v0.19.0 (C API 1.0.0): to try it, write `branch: "main"` instead of `from: "0.2.0"`.
+`from: "0.2.0"` resolves to tag 0.2.0, which runs LiteRT-LM v0.15.0. `main` runs LiteRT-LM v0.19.0; to try it, write `branch: "main"` instead. What v0.19.0 changes for an app is in [LiteRT-LM v0.19.0 on `main`](#litert-lm-v0190-on-main).
 
 Five lines to a streaming Gemma 4 chat:
 
@@ -274,13 +274,16 @@ attachments.
 
 On an iPhone 18 Pro (iOS 27.2) it answered in Easy mode a two-turn chat and one chat with text, an
 image and audio. A missing model file, three broken files, the RAM check and an over-long input each
-threw an error with a message, and a new chat answered afterwards. In FM mode it answered a
-`@Generable` request, a tool call and image attachments in a new session.
+threw an error with a message, and a new chat answered afterwards. In FM mode a
+`LanguageModelSession` answered a `@Generable` request, a tool call, image attachments, and a second
+turn after an image (6 of 6 runs) and after text (3 of 3), in Debug and Release builds. A new session
+answered after a cancelled stream (2 of 2).
 
-**FM sessions take a second turn on that iPhone.** A `LanguageModelSession` answered a second turn
-after an image attachment (6 of 6 runs) and after text (3 of 3), in Debug and Release builds. A new
-session answered after a stream was cancelled (2 of 2). Without the local patch listed in `NOTICE`,
-these had not returned when the runs were stopped, after about a minute.
+These second turns, and the new session after a cancelled stream, depend on a patch to the vendored
+wrapper (listed in `NOTICE`). Without it, the same runs had not returned when they were stopped, one
+to seven minutes in. On a Mac, with a delay added to reproduce it, the turn came back after the
+runtime's 10-minute timeout. Tag 0.2.0 does not carry the patch: on v0.15.0 the one iPhone run
+returned, and the same delay on a Mac stopped it.
 
 **After a turn throws, make a new chat.** Once a turn has thrown, or after `cancel()`, later turns
 on that `LiteRTChat` throw too. Release it, then create a new `LiteRTChat`: each one holds its own
@@ -307,7 +310,7 @@ measured on a Mac. If a bundle answers something unrelated, read its embedded te
 
 Gemma 4 E2B running on a physical **iPhone 17 Pro (iOS 27)** via the `LiteRTDemo`
 self-test — text + image + audio, all working. Measured with LiteRT-LM v0.13.1, the
-version this package pinned when the table was added; not yet measured on v0.19.0.
+version this package pinned when the table was added; this table has not been re-run on v0.19.0.
 
 | Modality | Output | Decode | Prefill | TTFT | Footprint |
 |---|---|---|---|---|---|

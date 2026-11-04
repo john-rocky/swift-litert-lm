@@ -41,7 +41,10 @@ Community package, not affiliated with Google or Apple. Use the `LiteRTFoundatio
    `Qwen3-0.6B.litertlm` and `Qwen3-0.6B_dynamic_wi4b32_afp32.litertlm` take a second turn on v0.19.0.
    Make a new `LiteRTChat` per turn; the recipe has the measurement and the workaround.
 6. **Do not hand-write `Engine` code or depend on the upstream Swift package** when `LiteRTChat`
-   covers the task. The runtime wrapper is vendored here on purpose (README "Why we vendor").
+   covers the task. The runtime wrapper is vendored here on purpose (README "Why we vendor"), and
+   `Sources/LiteRTLM/Conversation.swift` carries a local patch (`NOTICE`): on an iPhone 18 Pro
+   (iOS 27.2) with v0.19.0, an FM session answered a second turn with it, and without it had not
+   returned when the runs were stopped, one to seven minutes in (README "LiteRT-LM v0.19.0 on `main`").
 7. **Numbers stay with their device and runtime.** iPhone 17 Pro, iOS 27, LiteRT-LM v0.13.1: about
    50 tok/s decode and about 530 MB text footprint (README "Verified on device"). Do not extrapolate
    to other devices or runtime versions.
@@ -56,11 +59,6 @@ Community package, not affiliated with Google or Apple. Use the `LiteRTFoundatio
 11. **Two names need a module prefix.** With `import FoundationModels` and `import LiteRTFoundation`,
     write `FoundationModels.Tool`. With `import LiteRTFoundation` and `import LiteRTLM`, write
     `LiteRTFoundation.Modality`; with `import LiteRTFoundation` alone, plain `Modality` works.
-12. **Keep the local patch in `Sources/LiteRTLM/Conversation.swift` (see `NOTICE`) when the wrapper is
-    updated.** With it, on an iPhone 18 Pro (iOS 27.2) with v0.19.0, an FM session answered a second
-    turn after an image and after text, and a new session answered after a cancelled stream. Without
-    it, these had not returned when the runs were stopped, after about a minute (README "LiteRT-LM
-    v0.19.0 on `main`").
 
 ## Not this package
 
