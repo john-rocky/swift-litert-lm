@@ -188,6 +188,9 @@ public final class LiteRTExecutor: LanguageModelExecutor {
         initialMessages: plan.history,
         samplerConfig: try? SamplerConfig(topK: 40, topP: 0.95, temperature: temperature),
         visualTokenBudget: visualTokenBudget))
+    // Hold the conversation until its stream has been read, also under optimization: the last
+    // reference must not fall on the runtime's callback thread (see `endStream` in LiteRTLM).
+    defer { withExtendedLifetime(conversation) {} }
 
     if !tools.isEmpty {
       // Tool mode: buffer the output; if it's a tool call, emit a ToolCalls event
@@ -832,6 +835,7 @@ private actor LazyEngine {
     if warmed { return }
     warmed = true
     let warmup = try await engine.createConversation()
+    defer { withExtendedLifetime(warmup) {} }
     for try await _ in warmup.sendMessageStream(Message("Hi")) {}
   }
 

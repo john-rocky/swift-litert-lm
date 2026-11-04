@@ -13,10 +13,12 @@ Sources/LiteRTLM/
     License, Version 2.0. Original copyright Google LLC. See each file's header
     and the LICENSE file at the repository root.
 
-    Vendored verbatim except for one local patch: Config.swift adds
+    Vendored verbatim except for two local patches. Config.swift adds
     `EngineConfig.maxNumImages`, and Engine.swift passes it to the C API's
-    `litert_lm_engine_settings_set_max_num_images`. The tests, BUILD, Info.plist
-    and `apple_fm` from upstream's swift/ are not vendored.
+    `litert_lm_engine_settings_set_max_num_images`. Conversation.swift ends a
+    stream through `endStream`, so that `Conversation.deinit` does not run on the
+    runtime's callback thread. The tests, BUILD, Info.plist and `apple_fm` from
+    upstream's swift/ are not vendored.
 
     We vendor these files (rather than depending on the upstream SwiftPM
     package) so the package resolves without git-lfs: the upstream repository

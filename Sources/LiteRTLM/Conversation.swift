@@ -809,7 +809,8 @@ public final class Conversation: Sendable {
   /// Context object to bridge the C callback to the Swift AsyncThrowingStream.
   class StreamContext {
     let continuation: AsyncThrowingStream<Message, Error>.Continuation
-    let conversation: Conversation
+    /// Dropped by `endStream` when the stream ends.
+    var conversation: Conversation?
     var toolCallCount: Int = 0
     var pendingToolCalls: [[String: Any]] = []
     let repetitionPenaltyConfig: RepetitionPenaltyConfig?
@@ -838,6 +839,23 @@ public final class Conversation: Sendable {
   }
 }
 
+/// Ends the stream from the C callback. `Conversation.deinit` waits for this callback's task, which
+/// ends only after the callback returns, so the last reference must not fall on this thread.
+private func endStream(
+  _ context: Conversation.StreamContext, _ userData: UnsafeMutableRawPointer,
+  throwing error: Error? = nil
+) {
+  // A consumer waiting on the stream holds its own reference until `finish` wakes it. With no other
+  // holder (a cancelled stream), another thread takes the last reference.
+  let lastReference =
+    isKnownUniquelyReferenced(&context.conversation)
+    ? context.conversation.map(Unmanaged.passRetained) : nil
+  context.conversation = nil
+  if let lastReference { DispatchQueue.global().async { lastReference.release() } }
+  context.continuation.finish(throwing: error)
+  Unmanaged<Conversation.StreamContext>.fromOpaque(userData).release()
+}
+
 /// A callback function to bridge the C callback to the Swift AsyncThrowingStream.
 private func streamCallback(
   userData: UnsafeMutableRawPointer?,
@@ -863,17 +881,14 @@ private func streamCallback(
       litert_lm_stream_chunk_get_text(chunk, $0)
     }
   } catch {
-    context.continuation.finish(throwing: error)
-    Unmanaged<Conversation.StreamContext>.fromOpaque(userData).release()
+    endStream(context, userData, throwing: error)
     return
   }
 
   if let errorMessage = errorMessage {
     let errorString = String(cString: errorMessage)
     let error = LiteRTLMError.conversation(.invalidResponse(errorString))
-    context.continuation.finish(throwing: error)
-
-    Unmanaged<Conversation.StreamContext>.fromOpaque(userData).release()
+    endStream(context, userData, throwing: error)
     return
   }
 
@@ -896,8 +911,7 @@ private func streamCallback(
       }
     } catch {
       logger.error("Failed to parse response JSON: \(error.localizedDescription)")
-      context.continuation.finish(throwing: error)
-      Unmanaged<Conversation.StreamContext>.fromOpaque(userData).release()
+      endStream(context, userData, throwing: error)
       return
     }
   }
@@ -905,10 +919,10 @@ private func streamCallback(
   if isFinal {
     if !context.pendingToolCalls.isEmpty {
       if context.toolCallCount >= recurringToolCallLimit {
-        context.continuation.finish(
+        endStream(
+          context, userData,
           throwing: LiteRTLMError.conversation(
             .recurringToolCallLimitExceeded(limit: recurringToolCallLimit)))
-        Unmanaged<Conversation.StreamContext>.fromOpaque(userData).release()
         return
       }
 
@@ -918,9 +932,11 @@ private func streamCallback(
 
       Task {
         do {
-          let toolResponseJson = try await context.conversation.handleToolCalls(toolCalls)
-          try context.conversation.sendToStream(
-            handle: context.conversation.checkIsAlive(),
+          // The stream goes on, so `endStream` has not dropped this reference.
+          let conversation = context.conversation!
+          let toolResponseJson = try await conversation.handleToolCalls(toolCalls)
+          try conversation.sendToStream(
+            handle: conversation.checkIsAlive(),
             messageJson: toolResponseJson,
             repetitionPenaltyConfig: context.repetitionPenaltyConfig,
             noRepeatNgramConfig: context.noRepeatNgramConfig,
@@ -937,8 +953,7 @@ private func streamCallback(
         Unmanaged<Conversation.StreamContext>.fromOpaque(userData).release()
       }
     } else {
-      context.continuation.finish()
-      Unmanaged<Conversation.StreamContext>.fromOpaque(userData).release()
+      endStream(context, userData)
     }
   }
 }
