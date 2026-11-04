@@ -146,7 +146,8 @@ env var on launch): `LITERT_G0_TEST` (text+image+audio), `LITERT_MMCHAT`
 (one `.all` chat), `LITERT_BENCH` (decode speed), `LITERT_FM` (FM images + guided
 + tools), `LITERT_DEMO` (auto-runs a couple of chat turns),
 `LITERT_FAILURES` (missing or broken model file, RAM check, over-long input, cancel;
-no fixtures needed), `LITERT_CHAT_CHECK` (a two-turn chat; no fixtures needed).
+no fixtures needed), `LITERT_CHAT_CHECK` (a two-turn chat; no fixtures needed),
+`LITERT_UI_CHECK` (an over-long input, then a short turn, on the chat screen; no fixtures needed).
 
 ### One-take showcase (the demo-video mode)
 
@@ -269,12 +270,26 @@ Xcode 27.0 stops with `Git LFS is not installed` when it fetches LiteRT-LM as a 
 
 On a Mac, Gemma 4 E2B on v0.19.0 answered in Easy mode with text, with two images in one chat, and
 with audio. In FM mode it answered a two-turn session, a `@Generable` request, a tool call and image
-attachments. The iPhone run is pending.
+attachments.
+
+On an iPhone 18 Pro (iOS 27.2) it answered in Easy mode a two-turn chat and one chat with text, an
+image and audio. A missing model file, three broken files, the RAM check and an over-long input each
+threw an error with a message, and a new chat answered afterwards. In FM mode it answered a
+`@Generable` request, a tool call and image attachments in a new session. A two-turn FM session with
+text only was not measured.
+
+**In FM mode on an iPhone, an image turn followed by another turn did not finish.** On an iPhone 18
+Pro (iOS 27.2) with v0.19.0, a `LanguageModelSession` that sent an image attachment and then a text
+turn neither returned nor threw: 3 of 3 runs, the longest stopped after 7 minutes. The same two turns
+returned on v0.15.0 on that iPhone (1 run) and on v0.19.0 on a Mac (1 run with the same image and
+prompts). In Easy mode, one `LiteRTChat` answered a text turn, an image turn and an audio turn on that
+iPhone.
 
 **After a turn throws, make a new chat.** Once a turn has thrown, or after `cancel()`, later turns
-on that `LiteRTChat` throw too: three more turns threw in each case. Release it, then create a new
-`LiteRTChat`: each one holds its own engine. The sample app does this in `send()`. Measured on a Mac
-with LiteRT-LM v0.15.0 and v0.19.0; not yet measured on an iPhone.
+on that `LiteRTChat` throw too. Release it, then create a new `LiteRTChat`: each one holds its own
+engine. The sample app does this in `send()`. On a Mac with LiteRT-LM v0.15.0 and v0.19.0, three more
+turns threw in each case. On an iPhone 18 Pro (iOS 27.2) with v0.19.0, the next turn threw in each
+case and a new chat answered.
 
 **A string-only chat template can lose the prompt, with no error.** On v0.19.0,
 `qwen3_0_6b_mixed_int4.litertlm` from

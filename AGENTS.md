@@ -47,14 +47,19 @@ Community package, not affiliated with Google or Apple. Use the `LiteRTFoundatio
    to other devices or runtime versions.
 8. Easy mode needs iOS 16+ / macOS 13+; FM mode needs the iOS 27 SDK.
 9. **After a turn throws, or after `cancel()`, make a new `LiteRTChat`.** Later turns on that chat
-   throw too: three more turns threw in each case. Release the old one first: each `LiteRTChat` holds
-   its own engine. Measured on a Mac with v0.15.0 and v0.19.0; not yet measured on an iPhone.
+   throw too. Release the old one first: each `LiteRTChat` holds its own engine. On a Mac with v0.15.0
+   and v0.19.0, three more turns threw in each case. On an iPhone 18 Pro (iOS 27.2) with v0.19.0, the
+   next turn threw in each case and a new chat answered.
 10. **A string-only chat template can lose the prompt on v0.19.0, with no error.** If a bundle
     answers something unrelated, read its embedded template for `message.content is string`
     (README "LiteRT-LM v0.19.0 on `main`").
 11. **Two names need a module prefix.** With `import FoundationModels` and `import LiteRTFoundation`,
     write `FoundationModels.Tool`. With `import LiteRTFoundation` and `import LiteRTLM`, write
     `LiteRTFoundation.Modality`; with `import LiteRTFoundation` alone, plain `Modality` works.
+12. **On v0.19.0, do not send a second turn after an image in an FM session on an iPhone.** On an
+    iPhone 18 Pro (iOS 27.2) that session neither returned nor threw, in 3 of 3 runs. It returned on
+    v0.15.0 on that iPhone and on v0.19.0 on a Mac. Use a new session per image turn, or Easy mode
+    (README "LiteRT-LM v0.19.0 on `main`").
 
 ## Not this package
 
