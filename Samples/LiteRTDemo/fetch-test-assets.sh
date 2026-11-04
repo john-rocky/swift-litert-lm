@@ -14,7 +14,7 @@ BASE="https://raw.githubusercontent.com/google-ai-edge/litert-lm/main"
 mkdir -p "$DIR"
 
 echo "→ apple.png + have_a_wonderful_day.wav (LiteRT-LM testdata, Apache-2.0)"
-curl -fsSL "$BASE/runtime/components/preprocessor/testdata/apple.png" -o "$DIR/apple.png"
+curl -fsSL "$BASE/support/preprocessor/testdata/apple.png" -o "$DIR/apple.png"
 curl -fsSL "$BASE/runtime/testdata/have_a_wonderful_day.wav" -o "$DIR/have_a_wonderful_day.wav"
 
 # Chosen for the showcase vision scene: running shoes on a park path with no
