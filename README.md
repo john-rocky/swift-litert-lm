@@ -275,15 +275,12 @@ attachments.
 On an iPhone 18 Pro (iOS 27.2) it answered in Easy mode a two-turn chat and one chat with text, an
 image and audio. A missing model file, three broken files, the RAM check and an over-long input each
 threw an error with a message, and a new chat answered afterwards. In FM mode it answered a
-`@Generable` request, a tool call and image attachments in a new session. A two-turn FM session with
-text only was not measured.
+`@Generable` request, a tool call and image attachments in a new session.
 
-**In FM mode on an iPhone, an image turn followed by another turn did not finish.** On an iPhone 18
-Pro (iOS 27.2) with v0.19.0, a `LanguageModelSession` that sent an image attachment and then a text
-turn neither returned nor threw: 3 of 3 runs, the longest stopped after 7 minutes. The same two turns
-returned on v0.15.0 on that iPhone (1 run) and on v0.19.0 on a Mac (1 run with the same image and
-prompts). In Easy mode, one `LiteRTChat` answered a text turn, an image turn and an audio turn on that
-iPhone.
+**FM sessions take a second turn on that iPhone.** A `LanguageModelSession` answered a second turn
+after an image attachment (6 of 6 runs) and after text (3 of 3), in Debug and Release builds. A new
+session answered after a stream was cancelled (2 of 2). Without the local patch listed in `NOTICE`,
+these had not returned when the runs were stopped, after about a minute.
 
 **After a turn throws, make a new chat.** Once a turn has thrown, or after `cancel()`, later turns
 on that `LiteRTChat` throw too. Release it, then create a new `LiteRTChat`: each one holds its own

@@ -56,10 +56,11 @@ Community package, not affiliated with Google or Apple. Use the `LiteRTFoundatio
 11. **Two names need a module prefix.** With `import FoundationModels` and `import LiteRTFoundation`,
     write `FoundationModels.Tool`. With `import LiteRTFoundation` and `import LiteRTLM`, write
     `LiteRTFoundation.Modality`; with `import LiteRTFoundation` alone, plain `Modality` works.
-12. **On v0.19.0, do not send a second turn after an image in an FM session on an iPhone.** On an
-    iPhone 18 Pro (iOS 27.2) that session neither returned nor threw, in 3 of 3 runs. It returned on
-    v0.15.0 on that iPhone and on v0.19.0 on a Mac. Use a new session per image turn, or Easy mode
-    (README "LiteRT-LM v0.19.0 on `main`").
+12. **Keep the local patch in `Sources/LiteRTLM/Conversation.swift` (see `NOTICE`) when the wrapper is
+    updated.** With it, on an iPhone 18 Pro (iOS 27.2) with v0.19.0, an FM session answered a second
+    turn after an image and after text, and a new session answered after a cancelled stream. Without
+    it, these had not returned when the runs were stopped, after about a minute (README "LiteRT-LM
+    v0.19.0 on `main`").
 
 ## Not this package
 
