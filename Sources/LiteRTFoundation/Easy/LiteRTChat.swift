@@ -386,7 +386,7 @@ public enum LiteRTChatError: Error, LocalizedError {
       let needStr = ByteCountFormatter.string(fromByteCount: need, countStyle: .memory)
       return
         "This device has \(haveStr) of RAM; this model needs at least \(needStr). "
-        + "Pass allowUnsafeMemory: true to try anyway."
+        + "To try anyway, pass allowUnsafeMemory: true, or leave out minimumDeviceRAM for a local file."
     case .modelFileNotFound(let url):
       return "No model file found at \(url.path)."
     }
