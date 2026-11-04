@@ -56,8 +56,8 @@ public final class LiteRTChat {
   ///   - enableBenchmark: Turn on the engine's benchmark instrumentation so
   ///     `lastBenchmark()` reports real prefill/decode tokens-per-second.
   ///   - speculativeDecoding: Use the model's multi-token-prediction (MTP) drafter.
-  ///     Off by default — on the current runtime build enabling it is flaky and
-  ///     gives no measured decode speedup for Gemma 4 E2B.
+  ///     Off by default — measured on LiteRT-LM v0.13.1, enabling it was flaky and
+  ///     gave no decode speedup for Gemma 4 E2B.
   ///   - sampler: Sampling configuration for generation. Defaults to a balanced
   ///     chat sampler. (A non-nil sampler also avoids a benchmark-mode crash.)
   ///   - prewarm: Run a tiny throwaway generation during setup so the GPU decode
@@ -94,7 +94,6 @@ public final class LiteRTChat {
 
     ExperimentalFlags.optIntoExperimentalAPIs()
     if enableBenchmark { ExperimentalFlags.enableBenchmark = true }
-    ExperimentalFlags.enableSpeculativeDecoding = speculativeDecoding
 
     // Gemma 4's variable-resolution vision: cap per-image visual tokens to keep
     // the GPU working set bounded. Applied per conversation, not via the
@@ -112,6 +111,7 @@ public final class LiteRTChat {
       audioBackend: wanted.contains(.audio) ? model.audioBackend : nil,
       maxNumTokens: model.defaultMaxTokens,
       cacheDir: caches?.path,
+      speculativeDecodingConfig: SpeculativeDecodingConfig(mode: speculativeDecoding ? .on : .off),
       // Engine default is 1 image/conversation (a 2nd image overwrites the 1st);
       // allow several so multi-image chats work when vision is enabled.
       maxNumImages: wanted.contains(.vision) ? 16 : nil
@@ -187,7 +187,6 @@ public final class LiteRTChat {
 
     ExperimentalFlags.optIntoExperimentalAPIs()
     if enableBenchmark { ExperimentalFlags.enableBenchmark = true }
-    ExperimentalFlags.enableSpeculativeDecoding = speculativeDecoding
 
     // Applied per conversation, not via the process-wide flag.
     let conversationVisualTokenBudget =
@@ -201,6 +200,7 @@ public final class LiteRTChat {
       audioBackend: modalities.contains(.audio) ? audioBackend : nil,
       maxNumTokens: maxTokens,
       cacheDir: caches?.path,
+      speculativeDecodingConfig: SpeculativeDecodingConfig(mode: speculativeDecoding ? .on : .off),
       // Engine default is 1 image/conversation (a 2nd image overwrites the 1st);
       // allow several so multi-image chats work when vision is enabled.
       maxNumImages: modalities.contains(.vision) ? 16 : nil
@@ -330,7 +330,8 @@ public final class LiteRTChat {
     return out
   }
 
-  /// Cancel the in-flight generation, if any.
+  /// Cancel the in-flight generation, if any. The stream throws, and so does every
+  /// later turn on this `LiteRTChat`: release it, then create a new one for the next turn.
   public func cancel() throws { try conversation.cancel() }
 
   /// Engine-measured benchmark info for the most recent turn (prefill/decode
