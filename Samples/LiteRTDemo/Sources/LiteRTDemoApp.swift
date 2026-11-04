@@ -56,7 +56,9 @@ struct LiteRTDemoApp: App {
   }
 
   @ViewBuilder private var nonFMRoot: some View {
-    if LocalModelsSelfTest.isRequested {
+    if FailurePathsSelfTest.isRequested {
+      FailurePathsRunnerView()
+    } else if LocalModelsSelfTest.isRequested {
       SelfTestRunnerView(title: "Running local-models self-test…") { await LocalModelsSelfTest.run() }
     } else if MMChatSelfTest.isRequested {
       SelfTestRunnerView(title: "Running multimodal-chat self-test…") { await MMChatSelfTest.run() }

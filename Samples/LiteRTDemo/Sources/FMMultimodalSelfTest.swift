@@ -2,8 +2,11 @@
 //
 // Exercises the full FM-mode consumer API over the LiteRT backend:
 //   • G2 guided generation — `respond(generating:)` with a `@Generable` type
-//   • audio via `LiteRTAudioSegment` in a `@PromptBuilder`
-//   • video via `LiteRTVideoSegment` (frames from `VideoFrameSampler`)
+//   • images via Foundation Models' `Attachment` in a `@PromptBuilder`
+//   • tool calling
+//
+// Audio and video have no Foundation Models path since Xcode 27 beta 5; LITERT_MMCHAT
+// runs them in Easy mode.
 //
 // Launch with LITERT_FM=1. Lines are tagged "FM:" for devicectl polling.
 
@@ -11,6 +14,7 @@
 
 import Foundation
 import FoundationModels
+import ImageIO
 import LiteRTFoundation
 import os
 
@@ -52,7 +56,7 @@ enum FMMultimodalSelfTest {
   }
 
   static func run() async {
-    log("start — guided + audio + video over the Foundation Models API")
+    log("start — images + guided + tools over the Foundation Models API")
 
     let model: LiteRTLanguageModel
     let session: LanguageModelSession
@@ -69,14 +73,15 @@ enum FMMultimodalSelfTest {
     // Each modality is independent so one failure doesn't mask the others.
 
     // Image probes in fresh sessions: separate "single vs multiple frames" from
-    // "long-session history" effects for the video-path investigation.
+    // "long-session history" effects.
     if let png = Bundle.main.url(forResource: "apple", withExtension: "png"),
-      let img = try? Data(contentsOf: png)
+      let source = CGImageSourceCreateWithURL(png as CFURL, nil),
+      let img = CGImageSourceCreateImageAtIndex(source, 0, nil)
     {
       do {
         let s1 = LanguageModelSession(model: model)
         let a1 = try await s1.respond {
-          LiteRTVideoSegment(frames: [img])
+          Attachment(img)
           "What is shown in this image? Answer briefly."
         }
         log("IMG1(fresh) → \(a1.content.replacingOccurrences(of: "\n", with: " "))")
@@ -86,7 +91,10 @@ enum FMMultimodalSelfTest {
       do {
         let s4 = LanguageModelSession(model: model)
         let a4 = try await s4.respond {
-          LiteRTVideoSegment(frames: [img, img, img, img])
+          Attachment(img)
+          Attachment(img)
+          Attachment(img)
+          Attachment(img)
           "What is shown in these images? Answer briefly."
         }
         log("IMG4(fresh) → \(a4.content.replacingOccurrences(of: "\n", with: " "))")
@@ -98,7 +106,7 @@ enum FMMultimodalSelfTest {
       do {
         let s2 = LanguageModelSession(model: model)
         _ = try await s2.respond {
-          LiteRTVideoSegment(frames: [img])
+          Attachment(img)
           "What fruit is shown? One word."
         }
         let a2 = try await s2.respond(
@@ -109,34 +117,6 @@ enum FMMultimodalSelfTest {
       }
     } else {
       log("IMG probes skipped — apple.png not bundled")
-    }
-
-    // Audio understanding through the FM API (custom segment) — the world-first.
-    if let wav = Bundle.main.url(forResource: "have_a_wonderful_day", withExtension: "wav") {
-      do {
-        let data = try Data(contentsOf: wav)
-        let answer = try await session.respond {
-          LiteRTAudioSegment(data: data)
-          "Listen to this audio and reply to what is said."
-        }
-        log("AUDIO(FM reply) → \(answer.content.replacingOccurrences(of: "\n", with: " "))")
-      } catch {
-        log("AUDIO(FM) FAILED: \(error.localizedDescription)")
-      }
-    }
-
-    // Audio understanding can also answer a spoken question.
-    if let q = Bundle.main.url(forResource: "question", withExtension: "wav"),
-      let data = try? Data(contentsOf: q) {
-      do {
-        let answer = try await session.respond {
-          LiteRTAudioSegment(data: data)
-          "Answer the question that is asked in this audio."
-        }
-        log("AUDIO(Q&A) → \(answer.content.replacingOccurrences(of: "\n", with: " "))")
-      } catch {
-        log("AUDIO(Q&A) FAILED: \(error.localizedDescription)")
-      }
     }
 
     // G2 — guided generation into a @Generable type.
@@ -157,26 +137,6 @@ enum FMMultimodalSelfTest {
       log("TOOL → \(answer.content.replacingOccurrences(of: "\n", with: " "))")
     } catch {
       log("TOOL FAILED: \(error.localizedDescription)")
-    }
-
-    // Video understanding through the FM API (app-sampled frames).
-    // sample.mp4 is a red→green→blue sequence (see fetch-test-assets.sh), so
-    // the expected answer names the three color blocks in temporal order —
-    // proof the model attended to multiple frames, not just one.
-    if let mov = Bundle.main.url(forResource: "sample", withExtension: "mp4") {
-      do {
-        let frames = try await VideoFrameSampler.sampleFrames(from: mov, count: 4)
-        let answer = try await session.respond {
-          LiteRTVideoSegment(frames: frames)
-          "These images are frames sampled from a video in chronological order. "
-            + "Describe what is happening in the video."
-        }
-        log("VIDEO(FM) → \(answer.content.replacingOccurrences(of: "\n", with: " "))")
-      } catch {
-        log("VIDEO(FM) FAILED: \(error.localizedDescription)")
-      }
-    } else {
-      log("VIDEO(FM) skipped — bundle a sample.mp4 to exercise it")
     }
 
     log("DONE")

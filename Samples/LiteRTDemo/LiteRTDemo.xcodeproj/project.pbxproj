@@ -7,17 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		213B3B7741D9A56CC6236EB5 /* FailurePathsSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFF74146E3C19B598996A688 /* FailurePathsSelfTest.swift */; };
 		2E354DE02016A6607DEBE636 /* LiteRTDemoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D2B2D5362D83772972B30CE /* LiteRTDemoApp.swift */; };
 		36715CD49CF742DDC0299291 /* CompareSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A3C831C0FF3E39637730683 /* CompareSelfTest.swift */; };
 		3982CC52F53C70DC93DCF3E3 /* .gitkeep in Resources */ = {isa = PBXBuildFile; fileRef = 1990F8190E8E06CF8A614870 /* .gitkeep */; };
 		3BE9107624CF513F2E3FC891 /* G0SelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 035432685EAFAA748A24AA10 /* G0SelfTest.swift */; };
 		486B9DB7CDC7FD49A492F9E3 /* LiteRTDemoWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DF823491C18731CBDCADF37 /* LiteRTDemoWidgets.swift */; };
-		6455E9289B9646BEA4214565 /* question.wav in Resources */ = {isa = PBXBuildFile; fileRef = BDF02453C96B7BAE4746EA21 /* question.wav */; };
 		68452DF92568E865585C2489 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BC8D79397413AE4D1FC15FF6 /* Assets.xcassets */; };
 		72385C12DF31D3233F9D840B /* GemmaActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B876239D7A3887E118F55DC /* GemmaActivityAttributes.swift */; };
-		77814563AC4B33DD8D98B380 /* showcase.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 02DD9FC1FF026005D07E5460 /* showcase.jpg */; };
 		7858DDAC6E6B91D9F33B11C5 /* FMModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B18C11EE127A06FDA07B8B5D /* FMModeView.swift */; };
-		7C05DD08A893E8AAE69DAB02 /* apple.png in Resources */ = {isa = PBXBuildFile; fileRef = 207EF24D287022F9FE40A022 /* apple.png */; };
 		8824E0A14D3E75557513BAEC /* G1SelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB93931DAB12B7F616BA90D /* G1SelfTest.swift */; };
 		95612C854724EA892444B0D4 /* FMMultimodalSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D371B9D134D053F77286828 /* FMMultimodalSelfTest.swift */; };
 		9999841F1566E9772CD17AEF /* LiteRTDemoWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F858AB9F6DD0BBE5423196EB /* LiteRTDemoWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -29,8 +27,6 @@
 		D8DCD69A9094AE555FB014A4 /* MMChatSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EA39745C291E968242A46EA /* MMChatSelfTest.swift */; };
 		DED503B371A280FD05EE34A4 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 173D8A856944B56497324A6E /* AudioRecorder.swift */; };
 		E2EFF6404CF80C77CD43B1F2 /* FMShowcaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64ED0F36D110FB29162EF4D /* FMShowcaseView.swift */; };
-		EDBC0E8F0D53C9F9D5DE5BD7 /* have_a_wonderful_day.wav in Resources */ = {isa = PBXBuildFile; fileRef = 0FFE276E909E7FD41CC2E0F4 /* have_a_wonderful_day.wav */; };
-		FFA75CE73EBB8C47C8BE2E09 /* sample.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = B3026C2E0B3FD805E9DF427D /* sample.mp4 */; };
 		FFFAD57211C05702E6CB072B /* LiteRTLMFoundationModels in Frameworks */ = {isa = PBXBuildFile; productRef = 11C29AE33AA6A4F4C1644A6D /* LiteRTLMFoundationModels */; };
 /* End PBXBuildFile section */
 
@@ -59,14 +55,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		02DD9FC1FF026005D07E5460 /* showcase.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = showcase.jpg; sourceTree = "<group>"; };
 		035432685EAFAA748A24AA10 /* G0SelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = G0SelfTest.swift; sourceTree = "<group>"; };
 		0B47132B7AC0503FDD89F481 /* BenchSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchSelfTest.swift; sourceTree = "<group>"; };
 		0DF610979BA5C25B4B8FD16C /* LiteRTLMFoundationModels */ = {isa = PBXFileReference; lastKnownFileType = folder; name = LiteRTLMFoundationModels; path = ../../pr/LiteRTLMFoundationModels; sourceTree = SOURCE_ROOT; };
-		0FFE276E909E7FD41CC2E0F4 /* have_a_wonderful_day.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = have_a_wonderful_day.wav; sourceTree = "<group>"; };
 		173D8A856944B56497324A6E /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 		1990F8190E8E06CF8A614870 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
-		207EF24D287022F9FE40A022 /* apple.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = apple.png; sourceTree = "<group>"; };
 		2A3C831C0FF3E39637730683 /* CompareSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompareSelfTest.swift; sourceTree = "<group>"; };
 		2DF823491C18731CBDCADF37 /* LiteRTDemoWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteRTDemoWidgets.swift; sourceTree = "<group>"; };
 		2EA39745C291E968242A46EA /* MMChatSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MMChatSelfTest.swift; sourceTree = "<group>"; };
@@ -77,11 +70,10 @@
 		9D2B2D5362D83772972B30CE /* LiteRTDemoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteRTDemoApp.swift; sourceTree = "<group>"; };
 		A64ED0F36D110FB29162EF4D /* FMShowcaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FMShowcaseView.swift; sourceTree = "<group>"; };
 		AF3A959496CCEFD4A6E30DF1 /* LeanFMSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeanFMSelfTest.swift; sourceTree = "<group>"; };
+		AFF74146E3C19B598996A688 /* FailurePathsSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FailurePathsSelfTest.swift; sourceTree = "<group>"; };
 		B18C11EE127A06FDA07B8B5D /* FMModeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FMModeView.swift; sourceTree = "<group>"; };
-		B3026C2E0B3FD805E9DF427D /* sample.mp4 */ = {isa = PBXFileReference; path = sample.mp4; sourceTree = "<group>"; };
 		B81EA594E00E2E3485AA4CD1 /* LiteRTDemo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LiteRTDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BC8D79397413AE4D1FC15FF6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		BDF02453C96B7BAE4746EA21 /* question.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = question.wav; sourceTree = "<group>"; };
 		EDB93931DAB12B7F616BA90D /* G1SelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = G1SelfTest.swift; sourceTree = "<group>"; };
 		F858AB9F6DD0BBE5423196EB /* LiteRTDemoWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = LiteRTDemoWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -112,11 +104,6 @@
 			isa = PBXGroup;
 			children = (
 				1990F8190E8E06CF8A614870 /* .gitkeep */,
-				207EF24D287022F9FE40A022 /* apple.png */,
-				0FFE276E909E7FD41CC2E0F4 /* have_a_wonderful_day.wav */,
-				BDF02453C96B7BAE4746EA21 /* question.wav */,
-				B3026C2E0B3FD805E9DF427D /* sample.mp4 */,
-				02DD9FC1FF026005D07E5460 /* showcase.jpg */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -149,6 +136,7 @@
 				0B47132B7AC0503FDD89F481 /* BenchSelfTest.swift */,
 				2A3C831C0FF3E39637730683 /* CompareSelfTest.swift */,
 				6F0F8B68F6A585601EDBE641 /* ContentView.swift */,
+				AFF74146E3C19B598996A688 /* FailurePathsSelfTest.swift */,
 				B18C11EE127A06FDA07B8B5D /* FMModeView.swift */,
 				4D371B9D134D053F77286828 /* FMMultimodalSelfTest.swift */,
 				A64ED0F36D110FB29162EF4D /* FMShowcaseView.swift */,
@@ -261,11 +249,6 @@
 			files = (
 				3982CC52F53C70DC93DCF3E3 /* .gitkeep in Resources */,
 				68452DF92568E865585C2489 /* Assets.xcassets in Resources */,
-				7C05DD08A893E8AAE69DAB02 /* apple.png in Resources */,
-				EDBC0E8F0D53C9F9D5DE5BD7 /* have_a_wonderful_day.wav in Resources */,
-				6455E9289B9646BEA4214565 /* question.wav in Resources */,
-				FFA75CE73EBB8C47C8BE2E09 /* sample.mp4 in Resources */,
-				77814563AC4B33DD8D98B380 /* showcase.jpg in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -283,6 +266,7 @@
 				7858DDAC6E6B91D9F33B11C5 /* FMModeView.swift in Sources */,
 				95612C854724EA892444B0D4 /* FMMultimodalSelfTest.swift in Sources */,
 				E2EFF6404CF80C77CD43B1F2 /* FMShowcaseView.swift in Sources */,
+				213B3B7741D9A56CC6236EB5 /* FailurePathsSelfTest.swift in Sources */,
 				3BE9107624CF513F2E3FC891 /* G0SelfTest.swift in Sources */,
 				8824E0A14D3E75557513BAEC /* G1SelfTest.swift in Sources */,
 				A2F46E85E428DF02FC173CAE /* GemmaActivityAttributes.swift in Sources */,

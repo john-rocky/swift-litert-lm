@@ -1187,6 +1187,10 @@ final class FMShowcaseVM: ObservableObject {
       return
     }
     withAnimation { visionImageData = image }
+    guard let cgImage = UIImage(data: image)?.cgImage else {
+      visionText = "The bundled showcase image could not be decoded."
+      return
+    }
     // One retry with a fresh engine: a failed vision turn can leave a zombie
     // task in the engine's callback pool that wedges every later conversation
     // (observed as DEADLINE_EXCEEDED spam, then a dead run).
@@ -1198,7 +1202,7 @@ final class FMShowcaseVM: ObservableObject {
           var chunks = 0
           var firstToken: Date?
           let stream = session.streamResponse {
-            LiteRTVideoSegment(frames: [image])
+            Attachment(cgImage)
             script.visionPrompt
           }
           for try await snapshot in stream {
