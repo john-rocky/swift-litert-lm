@@ -5,10 +5,10 @@
 One dependency:
 
 ```swift
-.package(url: "https://github.com/john-rocky/swift-litert-lm", from: "0.2.0")   // product: LiteRTFoundation
+.package(url: "https://github.com/john-rocky/swift-litert-lm", from: "0.3.0")   // product: LiteRTFoundation
 ```
 
-`from: "0.2.0"` resolves to tag 0.2.0, which runs LiteRT-LM v0.15.0. `main` runs LiteRT-LM v0.19.0; to try it, write `branch: "main"` instead. What v0.19.0 changes for an app is in [LiteRT-LM v0.19.0 on `main`](#litert-lm-v0190-on-main).
+This runs LiteRT-LM v0.19.0 (C API 1.0.0). Tag 0.2.0 runs LiteRT-LM v0.15.0. What v0.19.0 changes for an app is in [LiteRT-LM v0.19.0](#litert-lm-v0190).
 
 Five lines to a streaming Gemma 4 chat:
 
@@ -266,7 +266,7 @@ Xcode 27.0 stops with `Git LFS is not installed` when it fetches LiteRT-LM as a 
 - iOS 16+ / macOS 13+ for Easy mode. (FM mode requires the iOS 27 SDK.)
 - A physical device for Metal GPU inference.
 
-## LiteRT-LM v0.19.0 on `main`
+## LiteRT-LM v0.19.0
 
 On a Mac, Gemma 4 E2B on v0.19.0 answered in Easy mode with text, with two images in one chat, and
 with audio. In FM mode it answered a two-turn session, a `@Generable` request, a tool call and image
@@ -282,7 +282,7 @@ answered after a cancelled stream (2 of 2).
 These second turns, and the new session after a cancelled stream, depend on a patch to the vendored
 wrapper (listed in `NOTICE`). Without it, the same runs had not returned when they were stopped, one
 to seven minutes in. On a Mac, with a delay added to reproduce it, the turn came back after the
-runtime's 10-minute timeout. Tag 0.2.0 does not carry the patch: on v0.15.0 the one iPhone run
+runtime's 10-minute timeout. Tag 0.3.0 carries the patch. Tag 0.2.0 does not carry the patch: on v0.15.0 the one iPhone run
 returned, and the same delay on a Mac stopped it.
 
 **After a turn throws, make a new chat.** Once a turn has thrown, or after `cancel()`, later turns

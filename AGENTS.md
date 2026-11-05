@@ -25,9 +25,9 @@ Community package, not affiliated with Google or Apple. Use the `LiteRTFoundatio
 
 ## Rules that fail on a real device when broken
 
-1. **Pin a tag, 0.2.0 or later.** `.package(url: "https://github.com/john-rocky/swift-litert-lm", from: "0.2.0")`.
+1. **Pin a tag, 0.3.0 or later.** `.package(url: "https://github.com/john-rocky/swift-litert-lm", from: "0.3.0")`.
    Tag 0.1.1, and `main` before 09f04f1, do not compile for iOS with Xcode 26.1.1 or Xcode 27.0 beta 5.
-   Tag 0.2.0 runs LiteRT-LM v0.15.0; `main` runs v0.19.0 (C API 1.0.0).
+   Tag 0.2.0 runs LiteRT-LM v0.15.0; tag 0.3.0 runs v0.19.0 (C API 1.0.0).
 2. **Metal GPU only engages in an Xcode-signed app on a physical device.** The iOS Simulator
    falls back to CPU. Do not report simulator speed as device speed.
 3. **Do not commit or bundle the model.** `LiteRTChat` downloads the `.litertlm` on first launch
@@ -44,7 +44,7 @@ Community package, not affiliated with Google or Apple. Use the `LiteRTFoundatio
    covers the task. The runtime wrapper is vendored here on purpose (README "Why we vendor"), and
    `Sources/LiteRTLM/Conversation.swift` carries a local patch (`NOTICE`): on an iPhone 18 Pro
    (iOS 27.2) with v0.19.0, an FM session answered a second turn with it, and without it had not
-   returned when the runs were stopped, one to seven minutes in (README "LiteRT-LM v0.19.0 on `main`").
+   returned when the runs were stopped, one to seven minutes in (README "LiteRT-LM v0.19.0").
 7. **Numbers stay with their device and runtime.** iPhone 17 Pro, iOS 27, LiteRT-LM v0.13.1: about
    50 tok/s decode and about 530 MB text footprint (README "Verified on device"). Do not extrapolate
    to other devices or runtime versions.
@@ -55,7 +55,7 @@ Community package, not affiliated with Google or Apple. Use the `LiteRTFoundatio
    next turn threw in each case and a new chat answered.
 10. **A string-only chat template can lose the prompt on v0.19.0, with no error.** If a bundle
     answers something unrelated, read its embedded template for `message.content is string`
-    (README "LiteRT-LM v0.19.0 on `main`").
+    (README "LiteRT-LM v0.19.0").
 11. **Two names need a module prefix.** With `import FoundationModels` and `import LiteRTFoundation`,
     write `FoundationModels.Tool`. With `import LiteRTFoundation` and `import LiteRTLM`, write
     `LiteRTFoundation.Modality`; with `import LiteRTFoundation` alone, plain `Modality` works.
