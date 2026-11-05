@@ -45,9 +45,9 @@ Community package, not affiliated with Google or Apple. Use the `LiteRTFoundatio
    `Sources/LiteRTLM/Conversation.swift` carries a local patch (`NOTICE`): on an iPhone 18 Pro
    (iOS 27.2) with v0.19.0, an FM session answered a second turn with it, and without it had not
    returned when the runs were stopped, one to seven minutes in (README "LiteRT-LM v0.19.0").
-7. **Numbers stay with their device and runtime.** iPhone 17 Pro, iOS 27, LiteRT-LM v0.13.1: about
-   50 tok/s decode and about 530 MB text footprint (README "Verified on device"). Do not extrapolate
-   to other devices or runtime versions.
+7. **Numbers stay with their device and runtime.** iPhone 18 Pro, iOS 27.2, LiteRT-LM v0.19.0: about
+   88 tok/s decode (warm) and about 507 MB footprint for `LiteRTChat(.gemma4_E2B)` (README "Verified
+   on device"). Do not extrapolate to other devices or runtime versions.
 8. Easy mode needs iOS 16+ / macOS 13+; FM mode needs the iOS 27 SDK.
 9. **After a turn throws, or after `cancel()`, make a new `LiteRTChat`.** Later turns on that chat
    throw too. Release the old one first: each `LiteRTChat` holds its own engine. On a Mac with v0.15.0

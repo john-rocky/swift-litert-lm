@@ -2,7 +2,7 @@
 
 > Gemma 4 on iPhone as a Swift package: one dependency line, five lines to a streaming chat on the Metal GPU, in-app model download, text + image + audio. Also a backend for Apple's Foundation Models API (iOS 27). Wraps Google's LiteRT-LM runtime. Community package, not affiliated with Google or Apple.
 
-Pin `from: "0.3.0"`, product `LiteRTFoundation`. This runs LiteRT-LM v0.19.0 (C API 1.0.0). Tag 0.2.0 runs LiteRT-LM v0.15.0. Measured on an iPhone 17 Pro (iOS 27) with LiteRT-LM v0.13.1: about 50 tok/s decode, about 530 MB text footprint.
+Pin `from: "0.3.0"`, product `LiteRTFoundation`. This runs LiteRT-LM v0.19.0 (C API 1.0.0). Tag 0.2.0 runs LiteRT-LM v0.15.0. Measured on an iPhone 18 Pro (iOS 27.2) with LiteRT-LM v0.19.0: about 88 tok/s decode (warm), about 507 MB footprint for `LiteRTChat(.gemma4_E2B)`.
 
 ```swift
 import LiteRTFoundation
