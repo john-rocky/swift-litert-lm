@@ -60,9 +60,12 @@ public final class LiteRTChat {
   ///     gave no decode speedup for Gemma 4 E2B.
   ///   - sampler: Sampling configuration for generation. Defaults to a balanced
   ///     chat sampler. (A non-nil sampler also avoids a benchmark-mode crash.)
-  ///   - prewarm: Run a tiny throwaway generation during setup so the GPU decode
-  ///     kernels are warm — the *first* real message is then fast (~50 vs ~33
-  ///     tok/s cold on iPhone 17 Pro). On by default; adds ~1–2 s to setup.
+  ///   - prewarm: Run a tiny throwaway generation during setup, so the user's first
+  ///     message is not the engine's first generation. On by default. Measured on
+  ///     LiteRT-LM v0.19.0, iPhone 18 Pro, text only, temperature 0, thermal state
+  ///     fair to serious, two runs per order: first-message decode 46–57 tok/s with
+  ///     it, 41–56 without, no consistent difference; setup 0.6–0.9 s with it,
+  ///     0.5–0.6 s without.
   ///   - onDownloadProgress: Called on the first run as the model downloads.
   /// - Throws: `LiteRTChatError` for memory/availability problems, `LiteRTLMError`
   ///   for engine failures, or a download error.
@@ -122,10 +125,9 @@ public final class LiteRTChat {
     // A balanced default sampler unless the caller supplied one.
     let activeSampler = try sampler ?? SamplerConfig(topK: 40, topP: 0.95, temperature: 0.8)
 
-    // Prewarm on a throwaway conversation: the first generation compiles/warms the
-    // GPU decode kernels (cold ~44 → warm ~50 tok/s). Doing it here, on a separate
-    // conversation (same sampler — a non-nil sampler avoids the benchmark-mode
-    // crash), keeps the user's real conversation history clean.
+    // Prewarm on a throwaway conversation (see the `prewarm` parameter). Doing it here,
+    // on a separate conversation (same sampler — a non-nil sampler avoids the
+    // benchmark-mode crash), keeps the user's real conversation history clean.
     if prewarm {
       let warmup = try await engine.createConversation(
         with: ConversationConfig(
