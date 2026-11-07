@@ -100,6 +100,8 @@ let weather  = try await withTool.respond(to: "What's the weather in Tokyo?")
 
 > **Metal GPU note:** the GPU backend only engages in an Xcode-signed app on a *physical* device. The iOS Simulator falls back to CPU.
 
+> **AnyLanguageModel instead of Foundation Models:** [anylanguagemodel-litert-lm](https://github.com/john-rocky/anylanguagemodel-litert-lm) puts this package's runtime behind [AnyLanguageModel](https://github.com/huggingface/AnyLanguageModel)'s `LanguageModelSession` for apps that target iOS 17+ or macOS 14+, and its `@Generable` output goes through LiteRT-LM's constrained decoding.
+
 ## Sample app — `Samples/LiteRTDemo`
 
 A clone-and-run SwiftUI chat in the ChatGPT/Claude style: message bubbles, live

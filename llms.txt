@@ -33,6 +33,7 @@ for try await token in chat.stream("Explain quantum computing in one sentence.")
 
 ## Related
 
+- [anylanguagemodel-litert-lm](https://github.com/john-rocky/anylanguagemodel-litert-lm): this runtime behind AnyLanguageModel's `LanguageModelSession` on iOS 17+ / macOS 14+, with `@Generable` output through LiteRT-LM's constrained decoding.
 - [hf-to-litertlm](https://github.com/john-rocky/hf-to-litertlm): convert a Hugging Face LLM or VLM to `.litertlm`.
 - [hfmodels-android](https://github.com/john-rocky/hfmodels-android): the same idea on Android.
 - [on-device-recipes](https://john-rocky.github.io/on-device-recipes/): device-verified recipes across runtimes.
