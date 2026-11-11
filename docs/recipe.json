@@ -20,7 +20,7 @@
   "runtime": {
     "name": "LiteRT-LM via swift-litert-lm (LiteRTChat)",
     "spm": "https://github.com/john-rocky/swift-litert-lm",
-    "version": "v0.15.0 (xcframeworks pinned by the Package.swift of tag 0.2.0; main has since moved to v0.19.0, and the measurements here are from v0.15.0 unless they say otherwise)",
+    "version": "v0.15.0 (xcframeworks pinned by the Package.swift of tag 0.2.0; main was on v0.19.1 on 2026-11-11, and the measurements here are from v0.15.0 unless they say otherwise)",
     "accelerator": "gpu",
     "swift_package_ref": "0.2.0 (09f04f1), tagged 2026-09-05. Tag 0.1.1 and main before 09f04f1 do not compile for iOS with Xcode 26.1.1 or Xcode 27.0 beta 5; the Easy-mode sources used here are unchanged since e82e3b1"
   },

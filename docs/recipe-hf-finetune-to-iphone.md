@@ -11,7 +11,7 @@ Not yet run on an iPhone (row pending). The converted bundle is published as
 so the verify command in section 6 needs no conversion. Everything here was run on 2026-09-05; the
 same facts in machine-readable form are in [`recipe.json`](recipe.json).
 
-This package's `main` has since moved to LiteRT-LM v0.19.0. The measurements below are from v0.15.0
+This package's `main` was on LiteRT-LM v0.19.1 on 2026-11-11. The measurements below are from v0.15.0
 unless a sentence says otherwise. The published file's chat template changed on 2026-09-21, so
 `resolve/main` now serves sha256 `7a4ec53564ef677f64dcb2de88017fccd1c00aa610495b24c089493278720fe6`,
 not the `b9f8587…` recorded below.
@@ -19,7 +19,7 @@ not the `b9f8587…` recorded below.
 Two limits, up front:
 
 - **One turn per `LiteRTChat` for Qwen3-template models today.** A second message on the same
-  conversation fails on LiteRT-LM v0.15.0 (tag `0.2.0` of this package) and on v0.19.0 (`main`); upstream
+  conversation fails on LiteRT-LM v0.15.0 (tag `0.2.0` of this package) and on v0.19.0 (tag `0.3.0`); upstream
   issue [google-ai-edge/LiteRT-LM#3443](https://github.com/google-ai-edge/LiteRT-LM/issues/3443). Section 5
   has the measurement and the workaround (a new `LiteRTChat` per turn).
 - **Use tag `0.2.0` or later of this package.** Tag `0.1.1`, and `main` before 09f04f1, fail to
@@ -200,8 +200,9 @@ INTERNAL: The new rendered template string does not start with the previous rend
 The embedded template renders the trailing assistant turn with an empty `<think></think>` pair
 while that turn is the last message, and without the pair once the next message is appended; the
 engine requires the new render to extend the old one byte for byte. Upstream issue
-[#3443](https://github.com/google-ai-edge/LiteRT-LM/issues/3443) (open, filed 2026-09-01 against
-v0.16.0 with the litert-community Qwen3-0.6B bundle) names the embedded Qwen3 chat template as the
+[#3443](https://github.com/google-ai-edge/LiteRT-LM/issues/3443) (filed 2026-09-01 against
+v0.16.0 with the litert-community Qwen3-0.6B bundle; closed on 2026-11-07, with the general case
+in [#3166](https://github.com/google-ai-edge/LiteRT-LM/issues/3166)) names the embedded Qwen3 chat template as the
 cause. The converter embeds the repo's template verbatim, so a Qwen3 fine-tune carries it.
 
 Measured again on 2026-11-05 on a Mac, on LiteRT-LM v0.19.0: the second message on the published
