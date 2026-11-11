@@ -22,7 +22,7 @@ Community package, not affiliated with Google or Apple. Use the `LiteRTFoundatio
 | A `.litertlm` already on disk (bundled, sideloaded, fine-tuned) | `LiteRTChat(modelFileURL:)` or `LiteRTLanguageModel(modelFileURL:)` | README "Shipping the model" |
 | A fine-tuned Hugging Face model, end to end | Convert with [hf-to-litertlm](https://github.com/john-rocky/hf-to-litertlm), then load it here | [docs/recipe-hf-finetune-to-iphone.md](docs/recipe-hf-finetune-to-iphone.md), measured 2026-09-05; data in [docs/recipe.json](docs/recipe.json) |
 | A complete app to copy | Chat with attachments, an FM API screen, a model picker | [Samples/LiteRTDemo](Samples/LiteRTDemo) |
-| Check the package resolves before opening Xcode | `git clone https://github.com/john-rocky/swift-litert-lm && cd swift-litert-lm && swift build` | README top |
+| Check the package resolves before opening Xcode | `git clone https://github.com/john-rocky/swift-litert-lm && cd swift-litert-lm && swift build` | `docs/easy-mode.md` |
 
 ## Rules that fail on a real device when broken
 
@@ -42,13 +42,12 @@ Community package, not affiliated with Google or Apple. Use the `LiteRTFoundatio
    `Qwen3-0.6B.litertlm` and `Qwen3-0.6B_dynamic_wi4b32_afp32.litertlm` take a second turn on v0.19.0.
    Make a new `LiteRTChat` per turn; the recipe has the measurement and the workaround.
 6. **Do not hand-write `Engine` code or depend on the upstream Swift package** when `LiteRTChat`
-   covers the task. The runtime wrapper is vendored here on purpose (README "Why we vendor"), and
+   covers the task. The runtime wrapper is vendored here on purpose ([`docs/why-vendor.md`](docs/why-vendor.md)), and
    `Sources/LiteRTLM/Conversation.swift` carries a local patch (`NOTICE`): on an iPhone 18 Pro
    (iOS 27.2) with v0.19.0, an FM session answered a second turn with it, and without it had not
-   returned when the runs were stopped, one to seven minutes in (README "LiteRT-LM v0.19.0").
+   returned when the runs were stopped, one to seven minutes in ([`docs/litert-lm-v0.19.0.md`](docs/litert-lm-v0.19.0.md)).
 7. **Numbers stay with their device and runtime.** iPhone 18 Pro, iOS 27.2, LiteRT-LM v0.19.0: about
-   88 tok/s decode (warm) and about 507 MB footprint for `LiteRTChat(.gemma4_E2B)` (README "Verified
-   on device"). Do not extrapolate to other devices or runtime versions.
+   88 tok/s decode (warm) and about 507 MB footprint for `LiteRTChat(.gemma4_E2B)` ([`docs/verified-on-device.md`](docs/verified-on-device.md)). Do not extrapolate to other devices or runtime versions.
 8. Easy mode needs iOS 16+ / macOS 13+; FM mode needs the iOS 27 SDK.
 9. **After a turn throws, or after `cancel()`, make a new `LiteRTChat`.** Later turns on that chat
    throw too. Release the old one first: each `LiteRTChat` holds its own engine. On a Mac with v0.15.0
@@ -56,7 +55,7 @@ Community package, not affiliated with Google or Apple. Use the `LiteRTFoundatio
    next turn threw in each case and a new chat answered.
 10. **A string-only chat template can lose the prompt on v0.19.0, with no error.** If a bundle
     answers something unrelated, read its embedded template for `message.content is string`
-    (README "LiteRT-LM v0.19.0").
+    ([`docs/litert-lm-v0.19.0.md`](docs/litert-lm-v0.19.0.md)).
 11. **Two names need a module prefix.** With `import FoundationModels` and `import LiteRTFoundation`,
     write `FoundationModels.Tool`. With `import LiteRTFoundation` and `import LiteRTLM`, write
     `LiteRTFoundation.Modality`; with `import LiteRTFoundation` alone, plain `Modality` works.

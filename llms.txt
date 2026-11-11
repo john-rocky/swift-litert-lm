@@ -15,7 +15,7 @@ for try await token in chat.stream("Explain quantum computing in one sentence.")
 
 ## Start here
 
-- [README](https://raw.githubusercontent.com/john-rocky/swift-litert-lm/main/README.md): install, Easy mode (`LiteRTChat`), FM mode (`LiteRTLanguageModel`), shipping the model, the verified device table.
+- [README](https://raw.githubusercontent.com/john-rocky/swift-litert-lm/main/README.md): install, Easy mode (`LiteRTChat`), FM mode (`LiteRTLanguageModel`), shipping the model. The verified device table is in docs/verified-on-device.md.
 - [AGENTS.md](https://raw.githubusercontent.com/john-rocky/swift-litert-lm/main/AGENTS.md): for coding agents. Task → API → file, and the rules that fail on a real device.
 - [Recipe: a fine-tuned Hugging Face model on iPhone](https://raw.githubusercontent.com/john-rocky/swift-litert-lm/main/docs/recipe-hf-finetune-to-iphone.md): hf-to-litertlm → `LiteRTChat`, measured 2026-09-05. Machine-readable: [recipe.json](https://raw.githubusercontent.com/john-rocky/swift-litert-lm/main/docs/recipe.json).
 - [Package.swift](https://raw.githubusercontent.com/john-rocky/swift-litert-lm/main/Package.swift): products `LiteRTFoundation` and `LiteRTLM`; the runtime xcframeworks are pinned to a LiteRT-LM release.
