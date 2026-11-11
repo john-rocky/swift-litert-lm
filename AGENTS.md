@@ -28,7 +28,7 @@ Community package, not affiliated with Google or Apple. Use the `LiteRTFoundatio
 
 1. **Pin a tag, 0.3.0 or later.** `.package(url: "https://github.com/john-rocky/swift-litert-lm", from: "0.3.0")`.
    Tag 0.1.1, and `main` before 09f04f1, do not compile for iOS with Xcode 26.1.1 or Xcode 27.0 beta 5.
-   Tag 0.2.0 runs LiteRT-LM v0.15.0; tag 0.3.0 runs v0.19.0 (C API 1.0.0).
+   Tag 0.2.0 runs LiteRT-LM v0.15.0; tag 0.3.0 runs v0.19.0; tag 0.3.1 runs v0.19.1 (C API 1.0.0).
 2. **Metal GPU only engages in an Xcode-signed app on a physical device.** The iOS Simulator
    falls back to CPU. Do not report simulator speed as device speed.
 3. **Do not commit or bundle the model.** `LiteRTChat` downloads the `.litertlm` on first launch

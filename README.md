@@ -14,7 +14,7 @@ This is a community package over Google's [LiteRT-LM](https://github.com/google-
 The simplest way in is `LiteRTChat`. In Xcode, paste the repo URL into **File → Add Package Dependencies…** and add the `LiteRTFoundation` product. In a `Package.swift`:
 
 ```swift
-.package(url: "https://github.com/john-rocky/swift-litert-lm", from: "0.3.0")
+.package(url: "https://github.com/john-rocky/swift-litert-lm", from: "0.3.1")
 ```
 
 Then stream a Gemma 4 chat. The first run downloads about 2.6 GB from Hugging Face, and later runs reuse it:
@@ -120,7 +120,7 @@ let session = LanguageModelSession(model: model)
 - iOS 16+ / macOS 13+ for Easy mode. FM mode requires the iOS 27 SDK.
 - An iPhone or a Mac for Metal GPU inference, not the Simulator.
 - No memory entitlement: the sample app has none.
-- Version 0.3.0 runs LiteRT-LM v0.19.0.
+- Version 0.3.1 runs LiteRT-LM v0.19.1. Version 0.3.0 runs LiteRT-LM v0.19.0.
 
 ## Documentation
 

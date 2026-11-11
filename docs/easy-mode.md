@@ -12,10 +12,10 @@ Apple opened Foundation Models to custom backends in iOS 27 — any type conform
 One dependency:
 
 ```swift
-.package(url: "https://github.com/john-rocky/swift-litert-lm", from: "0.3.0")   // product: LiteRTFoundation
+.package(url: "https://github.com/john-rocky/swift-litert-lm", from: "0.3.1")   // product: LiteRTFoundation
 ```
 
-This runs LiteRT-LM v0.19.0 (C API 1.0.0). Tag 0.2.0 runs LiteRT-LM v0.15.0. What v0.19.0 changes for an app is in [LiteRT-LM v0.19.0](litert-lm-v0.19.0.md).
+This runs LiteRT-LM v0.19.1 (C API 1.0.0). Tag 0.3.0 runs LiteRT-LM v0.19.0. Tag 0.2.0 runs LiteRT-LM v0.15.0. What v0.19.0 changes for an app is in [LiteRT-LM v0.19.0](litert-lm-v0.19.0.md).
 
 Five lines to a streaming Gemma 4 chat:
 
